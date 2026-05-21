@@ -1,0 +1,18 @@
+[
+  {
+    "name": "web_session",
+    "value": "your_web_session_value_here",
+    "domain": ".xiaohongshu.com",
+    "path": "/",
+    "httpOnly": true,
+    "secure": true
+  },
+  {
+    "name": "id_token",
+    "value": "your_id_token_value_here",
+    "domain": ".xiaohongshu.com",
+    "path": "/",
+    "httpOnly": true,
+    "secure": true
+  }
+]

@@ -1,0 +1,660 @@
+{
+  "profile": {
+    "nickname": "数字生命卡兹克",
+    "user_id": "62c98736000000001501e075",
+    "desc": "希望能激发你对AI的好奇。",
+    "ip_location": "北京",
+    "total_notes": 413,
+    "total_with_likes": 413,
+    "total_likes_sum": 202086,
+    "avg_likes": 489.3,
+    "median_likes": 110,
+    "max_likes": 9460,
+    "min_likes": 1,
+    "std_likes": 1020.8,
+    "p25": 453,
+    "p75": 43,
+    "video_count": 137,
+    "image_count": 276,
+    "content_span": "-10 months"
+  },
+  "topic_distribution": {
+    "观点/深度思考": {
+      "count": 11,
+      "pct": 2.7,
+      "avg_likes": 1431.8,
+      "median_likes": 485,
+      "max_likes": 5879,
+      "burst_count": 3,
+      "burst_rate": 27.3,
+      "above_avg_rate": 45.5
+    },
+    "教程/干货": {
+      "count": 21,
+      "pct": 5.1,
+      "avg_likes": 1355.0,
+      "median_likes": 400,
+      "max_likes": 6620,
+      "burst_count": 6,
+      "burst_rate": 28.6,
+      "above_avg_rate": 47.6
+    },
+    "工具/Skill发布": {
+      "count": 33,
+      "pct": 8.0,
+      "avg_likes": 589.3,
+      "median_likes": 95,
+      "max_likes": 4094,
+      "burst_count": 7,
+      "burst_rate": 21.2,
+      "above_avg_rate": 30.3
+    },
+    "个人/日常": {
+      "count": 31,
+      "pct": 7.5,
+      "avg_likes": 476.4,
+      "median_likes": 119,
+      "max_likes": 3721,
+      "burst_count": 5,
+      "burst_rate": 16.1,
+      "above_avg_rate": 25.8
+    },
+    "AI模型/产品评测": {
+      "count": 188,
+      "pct": 45.5,
+      "avg_likes": 439.1,
+      "median_likes": 110.5,
+      "max_likes": 9460,
+      "burst_count": 19,
+      "burst_rate": 10.1,
+      "above_avg_rate": 20.7
+    },
+    "其他/未分类": {
+      "count": 93,
+      "pct": 22.5,
+      "avg_likes": 383.5,
+      "median_likes": 95,
+      "max_likes": 5077,
+      "burst_count": 8,
+      "burst_rate": 8.6,
+      "above_avg_rate": 21.5
+    },
+    "热点追踪": {
+      "count": 16,
+      "pct": 3.9,
+      "avg_likes": 229.2,
+      "median_likes": 116.5,
+      "max_likes": 1786,
+      "burst_count": 1,
+      "burst_rate": 6.2,
+      "above_avg_rate": 12.5
+    },
+    "商业/活动": {
+      "count": 20,
+      "pct": 4.8,
+      "avg_likes": 88.8,
+      "median_likes": 38.5,
+      "max_likes": 595,
+      "burst_count": 0,
+      "burst_rate": 0.0,
+      "above_avg_rate": 5.0
+    }
+  },
+  "content_type": {
+    "normal": {
+      "count": 276,
+      "pct": 66.8,
+      "avg_likes": 601.4,
+      "vs_image_pct": 100.0
+    },
+    "video": {
+      "count": 137,
+      "pct": 33.2,
+      "avg_likes": 263.6,
+      "vs_image_pct": 43.8
+    }
+  },
+  "title_analysis": {
+    "avg_length": 17.1,
+    "感叹号": {
+      "count": 100,
+      "pct": 24.2,
+      "avg_likes": 680.2,
+      "vs_baseline_pct": 39.0
+    },
+    "问号": {
+      "count": 91,
+      "pct": 22.0,
+      "avg_likes": 515.9,
+      "vs_baseline_pct": 5.4
+    },
+    "括号【】「」": {
+      "count": 6,
+      "pct": 1.5,
+      "avg_likes": 1749.0,
+      "vs_baseline_pct": 257.4
+    },
+    "数字": {
+      "count": 107,
+      "pct": 25.9,
+      "avg_likes": 444.7,
+      "vs_baseline_pct": -9.1
+    },
+    "Emoji": {
+      "count": 48,
+      "pct": 11.6,
+      "avg_likes": 453.8,
+      "vs_baseline_pct": -7.3
+    },
+    "省略号": {
+      "count": 29,
+      "pct": 7.0,
+      "avg_likes": 540.8,
+      "vs_baseline_pct": 10.5
+    },
+    "冒号/破折号": {
+      "count": 9,
+      "pct": 2.2,
+      "avg_likes": 1265.6,
+      "vs_baseline_pct": 158.6
+    },
+    "引号": {
+      "count": 24,
+      "pct": 5.8,
+      "avg_likes": 435.5,
+      "vs_baseline_pct": -11.0
+    }
+  },
+  "title_formulas": {
+    "情绪感叹开头": {
+      "count": 7,
+      "pct": 1.7,
+      "avg_likes": 1175.6,
+      "vs_overall_pct": 140.3,
+      "burst_count": 2,
+      "burst_rate": 28.6,
+      "sample": [
+        "我人傻了，收到了AI送的第一杯奶茶。。。。",
+        "爽！我在这个Agent里当上了“土皇帝”。",
+        "破防，最大的受害者之一出现了"
+      ],
+      "top": "我人傻了，收到了AI送的第一杯奶茶。。。。"
+    },
+    "「标签」+价值承诺": {
+      "count": 4,
+      "pct": 1.0,
+      "avg_likes": 1416.0,
+      "vs_overall_pct": 189.4,
+      "burst_count": 1,
+      "burst_rate": 25.0,
+      "sample": [
+        "【保姆级】一文带你在手机玩CC！！",
+        "【保姆级】一文带你用QQ让Clawdbot打工！！",
+        "【保姆教程】小白也能上手编程Agent！"
+      ],
+      "top": "【保姆级】一文带你在手机玩CC！！"
+    },
+    "时间锚+领域": {
+      "count": 7,
+      "pct": 1.7,
+      "avg_likes": 1065.7,
+      "vs_overall_pct": 117.8,
+      "burst_count": 3,
+      "burst_rate": 42.9,
+      "sample": [
+        "用了三年AI，我特别想说......",
+        "他用AI复活了逝去11年的爱人，给我看破防了",
+        "三年了，我真离不开这个神器"
+      ],
+      "top": "用了三年AI，我特别想说......"
+    },
+    "断言/判断句式": {
+      "count": 9,
+      "pct": 2.2,
+      "avg_likes": 1168.7,
+      "vs_overall_pct": 138.8,
+      "burst_count": 2,
+      "burst_rate": 22.2,
+      "sample": [
+        "AI杀死了破折号，也绞杀了语文。",
+        "软件，正在悄悄死去？",
+        "AI正在杀死绝大多数的新人。"
+      ],
+      "top": "AI杀死了破折号，也绞杀了语文。"
+    },
+    "疑问/反问结尾": {
+      "count": 64,
+      "pct": 15.5,
+      "avg_likes": 436.8,
+      "vs_overall_pct": -10.7,
+      "burst_count": 6,
+      "burst_rate": 9.4,
+      "sample": [
+        "大公开！AI博主都怎么用Prompt？？",
+        "为什么GPT的智商和情商不可兼得？",
+        "OpenClaw安装服务，居然这么火爆？？"
+      ],
+      "top": "大公开！AI博主都怎么用Prompt？？"
+    },
+    "省略号悬念结尾": {
+      "count": 28,
+      "pct": 6.8,
+      "avg_likes": 523.4,
+      "vs_overall_pct": 7.0,
+      "burst_count": 4,
+      "burst_rate": 14.3,
+      "sample": [
+        "用了三年AI，我特别想说......",
+        "飞书要重新定义什么叫软件了...",
+        "深度体验了miclaw之后，我想说..."
+      ],
+      "top": "用了三年AI，我特别想说......"
+    },
+    "数字承诺结构": {
+      "count": 22,
+      "pct": 5.3,
+      "avg_likes": 968.9,
+      "vs_overall_pct": 98.0,
+      "burst_count": 4,
+      "burst_rate": 18.2,
+      "sample": [
+        "一文带你用上AI 编程神器——Codex！",
+        "给AI一个MBTI，它真按16种人格干活",
+        "【保姆级】一文带你在手机玩CC！！"
+      ],
+      "top": "一文带你用上AI 编程神器——Codex！"
+    },
+    "否定/对比开头": {
+      "count": 4,
+      "pct": 1.0,
+      "avg_likes": 1155.0,
+      "vs_overall_pct": 136.1,
+      "burst_count": 1,
+      "burst_rate": 25.0,
+      "sample": [
+        "别只会写提示词！Claude Code还能这样玩!",
+        "别让AI，替你活 ",
+        "别问我，我出不了星期四！"
+      ],
+      "top": "别只会写提示词！Claude Code还能这样玩!"
+    }
+  },
+  "engagement": {
+    "pareto_80pct_n_notes": 91,
+    "pareto_80pct_pct": 22.0,
+    "gini_coef": 0.974,
+    "top10pct_share": 60.4,
+    "top20pct_share": 77.8,
+    "top5_share": 15.9,
+    "bottom50pct_share": 4.9
+  },
+  "top_vs_bottom": {
+    "top20": {
+      "avg_tag_count": 1,
+      "avg_text_length": 1013.1,
+      "has_date_ratio": 75.0
+    },
+    "bot20": {
+      "avg_tag_count": 0.7,
+      "avg_text_length": 1082.5,
+      "has_date_ratio": 25.0
+    },
+    "top20_avg_likes": 4257.1,
+    "bot20_avg_likes": 14.9,
+    "ratio": 284.8
+  },
+  "growth": {
+    "months_active": 32,
+    "first_month": "2023-03",
+    "last_month": "2026-04",
+    "monthly_avg_likes": {
+      "2023-03": 356,
+      "2023-04": 300,
+      "2023-05": 276,
+      "2023-08": 131,
+      "2023-10": 69,
+      "2023-11": 68,
+      "2023-12": 23,
+      "2024-01": 416,
+      "2024-02": 417,
+      "2024-06": 496,
+      "2024-07": 618,
+      "2024-08": 379,
+      "2024-09": 250,
+      "2024-10": 262,
+      "2024-11": 243,
+      "2024-12": 161,
+      "2025-01": 191,
+      "2025-02": 191,
+      "2025-03": 205,
+      "2025-04": 243,
+      "2025-05": 451,
+      "2025-06": 425,
+      "2025-07": 484,
+      "2025-08": 468,
+      "2025-09": 502,
+      "2025-10": 407,
+      "2025-11": 515,
+      "2025-12": 662,
+      "2026-01": 776,
+      "2026-02": 740,
+      "2026-03": 827,
+      "2026-04": 846
+    },
+    "top_bursts": [
+      {
+        "date": "2023-03-27",
+        "title": "101小时整理的Prompt合集",
+        "likes": 1881,
+        "ratio_to_avg": 3.8
+      },
+      {
+        "date": "2024-06-21",
+        "title": "他用AI复活了逝去11年的爱人，给我看破防了",
+        "likes": 1664,
+        "ratio_to_avg": 3.4
+      },
+      {
+        "date": "2024-08-01",
+        "title": "我吐血评测了18个AIPPT，最好的竟然是..",
+        "likes": 1144,
+        "ratio_to_avg": 2.3
+      },
+      {
+        "date": "2024-09-04",
+        "title": "飞书要重新定义什么叫软件了...",
+        "likes": 2693,
+        "ratio_to_avg": 5.5
+      },
+      {
+        "date": "2024-09-07",
+        "title": "她开源了自己的AI模型，直面对抗Deepfake，正面宣战N号房2.0 AIGC",
+        "likes": 2016,
+        "ratio_to_avg": 4.1
+      },
+      {
+        "date": "2024-09-18",
+        "title": "用5分钟，就能生成播客了？",
+        "likes": 1562,
+        "ratio_to_avg": 3.2
+      },
+      {
+        "date": "2024-12-04",
+        "title": "仅需10秒，一键生成中文海报",
+        "likes": 1767,
+        "ratio_to_avg": 3.6
+      },
+      {
+        "date": "2025-02-06",
+        "title": "人类终于完成了跟DeepSeek的对齐。",
+        "likes": 1484,
+        "ratio_to_avg": 3.0
+      },
+      {
+        "date": "2025-05-26",
+        "title": "AI替你打工 保姆级RPA教程",
+        "likes": 2151,
+        "ratio_to_avg": 4.4
+      },
+      {
+        "date": "2025-06-29",
+        "title": "我人傻了，收到了AI送的第一杯奶茶。。。。",
+        "likes": 3826,
+        "ratio_to_avg": 7.8
+      },
+      {
+        "date": "2025-07-04",
+        "title": "AI杀死了破折号，也绞杀了语文。",
+        "likes": 5879,
+        "ratio_to_avg": 12.0
+      },
+      {
+        "date": "2025-07-05",
+        "title": "假扮AI的17岁男高中生，用回复治愈了B站",
+        "likes": 9460,
+        "ratio_to_avg": 19.3
+      },
+      {
+        "date": "2025-07-07",
+        "title": "微信支付开放MCP后，我却有一点后怕了",
+        "likes": 1380,
+        "ratio_to_avg": 2.8
+      },
+      {
+        "date": "2025-08-07",
+        "title": "实测GPT-5：写作坠入谷底，编程一骑绝尘",
+        "likes": 1265,
+        "ratio_to_avg": 2.6
+      },
+      {
+        "date": "2025-08-14",
+        "title": "为什么GPT的智商和情商不可兼得？",
+        "likes": 2031,
+        "ratio_to_avg": 4.2
+      },
+      {
+        "date": "2025-09-08",
+        "title": "AI里最大的Bug，却是人类文明最伟大的起点",
+        "likes": 1725,
+        "ratio_to_avg": 3.5
+      },
+      {
+        "date": "2025-09-23",
+        "title": "给AI一个MBTI，它真按16种人格干活",
+        "likes": 5115,
+        "ratio_to_avg": 10.5
+      },
+      {
+        "date": "2025-10-13",
+        "title": "今天，不得不和SD时代告别",
+        "likes": 2404,
+        "ratio_to_avg": 4.9
+      },
+      {
+        "date": "2025-10-14",
+        "title": "三年了，我真离不开这个神器",
+        "likes": 1017,
+        "ratio_to_avg": 2.1
+      },
+      {
+        "date": "2025-11-11",
+        "title": "AI正在杀死绝大多数的新人。",
+        "likes": 999,
+        "ratio_to_avg": 2.0
+      },
+      {
+        "date": "2025-11-14",
+        "title": "“薅羊毛”？我真没话说了",
+        "likes": 3721,
+        "ratio_to_avg": 7.6
+      },
+      {
+        "date": "2025-11-20",
+        "title": "熬夜实测！Nano Banana Pro到底有多强",
+        "likes": 3298,
+        "ratio_to_avg": 6.7
+      },
+      {
+        "date": "2025-11-25",
+        "title": "治好了失忆症，这次AI有了灵魂？？？",
+        "likes": 1470,
+        "ratio_to_avg": 3.0
+      },
+      {
+        "date": "2025-12-22",
+        "title": "WHO AM I ?",
+        "likes": 5077,
+        "ratio_to_avg": 10.4
+      },
+      {
+        "date": "2026-01-07",
+        "title": "大公开！AI博主都怎么用Prompt？？",
+        "likes": 5061,
+        "ratio_to_avg": 10.3
+      },
+      {
+        "date": "2026-01-13",
+        "title": "Skills：让AI少废话多干活！！",
+        "likes": 1485,
+        "ratio_to_avg": 3.0
+      },
+      {
+        "date": "2026-01-16",
+        "title": "三分钟告诉你Skills是什么",
+        "likes": 2156,
+        "ratio_to_avg": 4.4
+      },
+      {
+        "date": "2026-01-21",
+        "title": "Skills超绝用法！万能工具箱来啦！",
+        "likes": 2546,
+        "ratio_to_avg": 5.2
+      },
+      {
+        "date": "2026-01-23",
+        "title": "更爽！手搓实现Skills库全自动化【附地址】",
+        "likes": 1039,
+        "ratio_to_avg": 2.1
+      },
+      {
+        "date": "2026-01-28",
+        "title": "火爆全网的Clawdbot到底怎么用？【保姆级】",
+        "likes": 3791,
+        "ratio_to_avg": 7.7
+      }
+    ],
+    "burst_count": 50
+  },
+  "tags": {
+    "total_unique": 104,
+    "top30": [
+      {
+        "tag": "AI",
+        "count": 23
+      },
+      {
+        "tag": "AI新手村",
+        "count": 22
+      },
+      {
+        "tag": "科技薯",
+        "count": 18
+      },
+      {
+        "tag": "数字生命卡兹克",
+        "count": 16
+      },
+      {
+        "tag": "AI工具",
+        "count": 16
+      },
+      {
+        "tag": "AIChannel",
+        "count": 12
+      },
+      {
+        "tag": "大模型",
+        "count": 11
+      },
+      {
+        "tag": "人工智能",
+        "count": 7
+      },
+      {
+        "tag": "vibecoding大赏",
+        "count": 3
+      },
+      {
+        "tag": "agent",
+        "count": 3
+      },
+      {
+        "tag": "skills",
+        "count": 2
+      },
+      {
+        "tag": "小红书科技AMA",
+        "count": 2
+      },
+      {
+        "tag": "效率神器",
+        "count": 2
+      },
+      {
+        "tag": "Google",
+        "count": 2
+      },
+      {
+        "tag": "Gemini",
+        "count": 2
+      },
+      {
+        "tag": "AI视频",
+        "count": 2
+      },
+      {
+        "tag": "机器学习",
+        "count": 2
+      },
+      {
+        "tag": "暖言猫猫",
+        "count": 1
+      },
+      {
+        "tag": "治愈系",
+        "count": 1
+      },
+      {
+        "tag": "AI创作",
+        "count": 1
+      },
+      {
+        "tag": "个人开发者",
+        "count": 1
+      },
+      {
+        "tag": "AI写作",
+        "count": 1
+      },
+      {
+        "tag": "写作",
+        "count": 1
+      },
+      {
+        "tag": "AI人工智能",
+        "count": 1
+      },
+      {
+        "tag": "领略中文之美",
+        "count": 1
+      },
+      {
+        "tag": "十六种人格",
+        "count": 1
+      },
+      {
+        "tag": "mbti",
+        "count": 1
+      },
+      {
+        "tag": "AI人格",
+        "count": 1
+      },
+      {
+        "tag": "找自己",
+        "count": 1
+      },
+      {
+        "tag": "我的天赋进化史",
+        "count": 1
+      }
+    ],
+    "total_mentions": 232
+  },
+  "commercial": {
+    "detected_count": 6,
+    "detected_pct": 1.5,
+    "avg_likes_commercial": 183.0,
+    "avg_likes_organic": 493.8
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "xhs-blogger-analyzer",
+  "version": "1.0.0",
+  "description": "小红书博主深度分析工具 — AI驱动的创作者研究方法论",
+  "main": "scrape.js",
+  "scripts": {
+    "scrape": "node scrape.js"
+  },
+  "keywords": ["xiaohongshu", "小红书", "blogger-analysis", "content-analysis"],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}
