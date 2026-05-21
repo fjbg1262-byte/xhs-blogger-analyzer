@@ -95,11 +95,26 @@ async function main() {
 
     console.log(`\nTotal notes collected: ${allNotes.length}`);
 
-    // Save
+    // Extract profile info
+    let nickname = '';
+    try {
+        nickname = await page.evaluate(() => document.title.replace(' - 小红书', '').trim());
+    } catch {}
+    if (!nickname) nickname = 'unknown';
+
+    // Save notes
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
     const outputPath = path.join(OUTPUT_DIR, 'all_notes.json');
     fs.writeFileSync(outputPath, JSON.stringify(allNotes, null, 2));
-    console.log(`Saved to: ${outputPath}`);
+
+    // Save profile info
+    const userProfile = { nickname, user_id: PROFILE_URL.split('/').pop().split('?')[0], note_count: allNotes.length };
+    const profilePath = path.join(OUTPUT_DIR, 'profile.json');
+    fs.writeFileSync(profilePath, JSON.stringify(userProfile, null, 2));
+
+    console.log(`Blogger: ${nickname}`);
+    console.log(`Notes saved to: ${outputPath}`);
+    console.log(`Profile saved to: ${profilePath}`);
 
     await browser.close();
 }

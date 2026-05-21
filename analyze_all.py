@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 parser = argparse.ArgumentParser()
 parser.add_argument('--notes', default='./data/all_notes.json')
 parser.add_argument('--contents', default=None)
+parser.add_argument('--profile', default=None)
 parser.add_argument('--output', default='./data/results.json')
 args = parser.parse_args()
 
@@ -27,6 +28,15 @@ if args.contents:
 
 notes = [n for n in all_notes if n.get('liked_count', 0) > 0]
 results = {}
+
+# Load profile info if available
+profile_info = {}
+if args.profile:
+    try:
+        with open(args.profile, 'r', encoding='utf-8') as f:
+            profile_info = json.load(f)
+    except:
+        pass
 
 # ---- Extract timestamps from note_ids ----
 def extract_timestamp(note_id):
@@ -51,6 +61,8 @@ print(f"Timestamps extracted: {len(notes_with_dt)}/{len(all_notes)}")
 # ---- 1. Profile ----
 likes_sorted = sorted([n['liked_count'] for n in notes], reverse=True)
 results['profile'] = {
+    'nickname': profile_info.get('nickname', ''),
+    'user_id': profile_info.get('user_id', ''),
     'total_notes': len(all_notes),
     'total_with_likes': len(notes),
     'total_likes_sum': sum(n['liked_count'] for n in notes),
