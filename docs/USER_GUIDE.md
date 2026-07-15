@@ -193,6 +193,8 @@ https://www.xiaohongshu.com/user/profile/用户ID
 2. 双击 `start_windows.bat`。
 3. 等网页打开后，再点插件分析。
 
+如果 `start_windows.bat` 提示启动失败，可以把工具文件夹里的 `logs` 文件夹截图或打包发给作者排查。
+
 ### 插件提示“先打开博主主页”
 
 说明你当前打开的不是博主主页。

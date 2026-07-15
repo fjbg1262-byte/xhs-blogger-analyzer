@@ -1389,6 +1389,31 @@ analysis_text = 标题 + 已采集正文 + 标签
 插件：加载 browser-extension 文件夹
 ```
 
+### 17.5 当前完成状态
+
+已完成：
+
+- `start_windows.bat` 统一为用户主入口。
+- `scripts/start_local.ps1` 支持本地 `.venv`、依赖安装、后端/前端启动、浏览器自动打开。
+- `scripts/start_local.ps1` 会忽略失效的本地代理，避免 pip/npm 被坏代理卡住。
+- `scripts/start_local.ps1` 对 Python/Node 缺失、依赖安装失败、端口占用、本地服务启动失败给出明确提示。
+- 依赖安装详细输出写入 `logs/setup.log` 和 `logs/setup.err.log`。
+- 后端/前端运行日志写入 `logs/backend.log`、`logs/backend.err.log`、`logs/frontend.log`、`logs/frontend.err.log`。
+- `stop_windows.bat` 和 `scripts/stop_local.ps1` 可以关闭本项目启动的本地服务。
+- `stop_local.ps1` 遇到未知程序占用端口时不强行关闭。
+- `scripts/package_beta.ps1` 已排除 `.venv`、`logs`、`node_modules`、本地数据、报告和示例素材目录。
+
+已验证：
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_local.ps1 -InstallOnly` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_local.ps1` 可以启动本地服务并打开页面。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop_local.ps1` 可以关闭本地服务。
+
+剩余可打磨项：
+
+- 启动窗口仍为英文稳定提示，中文解释放在 `docs/USER_GUIDE.md`。
+- 后续阶段十二完成后，应移除用户侧 Node.js 依赖，并将启动端口收敛为一个。
+
 ## 18. 阶段十二：移除用户侧 Node.js 依赖
 
 ### 18.1 目标

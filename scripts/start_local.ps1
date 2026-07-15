@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $logsDir = Join-Path $root "logs"
 $venvDir = Join-Path $root ".venv"
@@ -11,6 +12,12 @@ $requirements = Join-Path $root "requirements.txt"
 $setupMarker = Join-Path $venvDir ".requirements-installed"
 $frontendDir = Join-Path $root "frontend"
 $spiderDir = Join-Path $root "spider_xhs"
+$backendLog = Join-Path $logsDir "backend.log"
+$backendErr = Join-Path $logsDir "backend.err.log"
+$frontendLog = Join-Path $logsDir "frontend.log"
+$frontendErr = Join-Path $logsDir "frontend.err.log"
+$setupLog = Join-Path $logsDir "setup.log"
+$setupErr = Join-Path $logsDir "setup.err.log"
 
 function Write-Title($Text) {
   Write-Host ""
@@ -24,8 +31,45 @@ function Write-Step($Text) {
   Write-Host "[*] $Text"
 }
 
+function Write-Ok($Text) {
+  Write-Host "[OK] $Text"
+}
+
+function Write-Warn($Text) {
+  Write-Host "[!] $Text"
+}
+
+function Fail-User($Title, $Detail) {
+  Write-Host ""
+  Write-Host "[FAILED] $Title"
+  if ($Detail) {
+    Write-Host $Detail
+  }
+  Write-Host ""
+  Write-Host "Please send this logs folder to the author if you need help:"
+  Write-Host $logsDir
+  throw $Title
+}
+
 function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Test-TcpPort($HostName, $Port) {
+  $client = New-Object System.Net.Sockets.TcpClient
+  try {
+    $async = $client.BeginConnect($HostName, $Port, $null, $null)
+    $success = $async.AsyncWaitHandle.WaitOne(800, $false)
+    if (-not $success) {
+      return $false
+    }
+    $client.EndConnect($async)
+    return $true
+  } catch {
+    return $false
+  } finally {
+    $client.Close()
+  }
 }
 
 function Clear-BrokenLocalProxy {
@@ -42,12 +86,9 @@ function Clear-BrokenLocalProxy {
     try {
       $uri = [Uri]$value
       $isLocal = $uri.Host -in @("127.0.0.1", "localhost")
-      if ($isLocal -and $uri.Port -gt 0) {
-        $alive = Test-NetConnection -ComputerName $uri.Host -Port $uri.Port -InformationLevel Quiet
-        if (-not $alive) {
-          Write-Step "Ignoring unavailable local proxy $value"
-          Remove-Item "Env:$name" -ErrorAction SilentlyContinue
-        }
+      if ($isLocal -and $uri.Port -gt 0 -and -not (Test-TcpPort $uri.Host $uri.Port)) {
+        Write-Warn "Unavailable local proxy ignored for this launch: $value"
+        Remove-Item "Env:$name" -ErrorAction SilentlyContinue
       }
     } catch {
       continue
@@ -55,10 +96,25 @@ function Clear-BrokenLocalProxy {
   }
 }
 
-function Invoke-Step($FilePath, $Arguments, $WorkingDirectory) {
-  $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -WorkingDirectory $WorkingDirectory -Wait -PassThru -NoNewWindow
+function Invoke-LoggedStep($FilePath, $Arguments, $WorkingDirectory, $Name) {
+  Add-Content -Path $setupLog -Value ""
+  Add-Content -Path $setupLog -Value "===== $Name ====="
+  Add-Content -Path $setupLog -Value "$FilePath $($Arguments -join ' ')"
+  Add-Content -Path $setupErr -Value ""
+  Add-Content -Path $setupErr -Value "===== $Name ====="
+
+  $process = Start-Process `
+    -FilePath $FilePath `
+    -ArgumentList $Arguments `
+    -WorkingDirectory $WorkingDirectory `
+    -Wait `
+    -PassThru `
+    -NoNewWindow `
+    -RedirectStandardOutput $setupLog `
+    -RedirectStandardError $setupErr
+
   if ($process.ExitCode -ne 0) {
-    throw "Command failed: $FilePath $($Arguments -join ' ')"
+    Fail-User "$Name failed" "Check your network, then check: $setupErr"
   }
 }
 
@@ -92,54 +148,65 @@ function Wait-Url($Url, $Seconds) {
   return $false
 }
 
+function Test-PortFreeOrExpected($Port, $HealthUrl, $ServiceName) {
+  if (Test-Url $HealthUrl) {
+    return "ready"
+  }
+
+  if (Test-TcpPort "127.0.0.1" $Port) {
+    Fail-User "$ServiceName port is busy" "Port $Port is used by another program. Close that program or restart Windows, then try again."
+  }
+
+  return "free"
+}
+
 function Ensure-Python {
   $python = Get-PythonCommand
   if (-not $python) {
-    Write-Host ""
-    Write-Host "Python was not found."
-    Write-Host "Please install Python 3.9 or newer, then run this file again."
-    Write-Host "Opening download page..."
     Start-Process "https://www.python.org/downloads/"
-    throw "Missing Python"
+    Fail-User "Python was not found" "Install Python 3.9 or newer. During installation, tick Add Python to PATH."
   }
 
   if (-not (Test-Path $venvPython)) {
-    Write-Step "Creating local Python environment"
+    Write-Step "First launch: creating local Python environment"
     $args = @($python.Args) + @("-m", "venv", $venvDir)
-    Invoke-Step $python.File $args $root
+    Invoke-LoggedStep $python.File $args $root "Create local Python environment"
   }
 
   if (-not (Test-Path $setupMarker) -or (Get-Item $setupMarker).LastWriteTime -lt (Get-Item $requirements).LastWriteTime) {
-    Write-Step "Installing Python packages"
-    Invoke-Step $venvPython @("-m", "pip", "install", "--disable-pip-version-check", "-r", $requirements) $root
+    Write-Step "Installing Python packages. First launch may take 5-15 minutes. Do not close this window."
+    Invoke-LoggedStep $venvPython @("-m", "pip", "install", "--disable-pip-version-check", "-r", $requirements) $root "Install Python packages"
     New-Item -ItemType File -Force -Path $setupMarker | Out-Null
+  } else {
+    Write-Ok "Python packages are ready"
   }
 }
 
 function Ensure-NodePackages {
   if (-not (Test-Command "npm")) {
-    Write-Host ""
-    Write-Host "Node.js was not found."
-    Write-Host "Please install Node.js LTS, then run this file again."
-    Write-Host "Opening download page..."
     Start-Process "https://nodejs.org/"
-    throw "Missing Node.js"
+    Fail-User "Node.js was not found" "Install Node.js LTS, then double-click start_windows.bat again."
   }
 
   if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-    Write-Step "Installing frontend packages"
-    Invoke-Step "cmd.exe" @("/c", "npm install") $frontendDir
+    Write-Step "Installing web packages. First launch may take a few minutes. Do not close this window."
+    Invoke-LoggedStep "cmd.exe" @("/c", "npm install") $frontendDir "Install web packages"
+  } else {
+    Write-Ok "Web packages are ready"
   }
 
   if ((Test-Path (Join-Path $spiderDir "package.json")) -and -not (Test-Path (Join-Path $spiderDir "node_modules"))) {
-    Write-Step "Installing collector packages"
-    Invoke-Step "cmd.exe" @("/c", "npm install") $spiderDir
+    Write-Step "Installing collector packages. First launch may take a few minutes. Do not close this window."
+    Invoke-LoggedStep "cmd.exe" @("/c", "npm install") $spiderDir "Install collector packages"
+  } else {
+    Write-Ok "Collector packages are ready"
   }
 }
 
 function Start-Backend {
-  if (Test-Url "http://127.0.0.1:8000/api/health") {
-    Write-Step "Backend is already running"
+  $state = Test-PortFreeOrExpected 8000 "http://127.0.0.1:8000/api/health" "Backend"
+  if ($state -eq "ready") {
+    Write-Ok "Backend service is already running"
     return
   }
 
@@ -148,29 +215,34 @@ function Start-Backend {
     -FilePath $venvPython `
     -ArgumentList @("-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", "8000") `
     -WorkingDirectory $root `
-    -RedirectStandardOutput (Join-Path $logsDir "backend.log") `
-    -RedirectStandardError (Join-Path $logsDir "backend.err.log") `
+    -RedirectStandardOutput $backendLog `
+    -RedirectStandardError $backendErr `
     -WindowStyle Hidden | Out-Null
 }
 
 function Start-Frontend {
   if (Test-Url "http://127.0.0.1:5173") {
-    Write-Step "Frontend is already running"
+    Write-Ok "Web service is already running"
     return
   }
 
-  Write-Step "Starting frontend service"
+  if (Test-TcpPort "127.0.0.1" 5173) {
+    Fail-User "Web port is busy" "Port 5173 is used by another program. Close that program or restart Windows, then try again."
+  }
+
+  Write-Step "Starting web service"
   Start-Process `
     -FilePath "cmd.exe" `
     -ArgumentList @("/c", "npm run dev -- --host 127.0.0.1") `
     -WorkingDirectory $frontendDir `
-    -RedirectStandardOutput (Join-Path $logsDir "frontend.log") `
-    -RedirectStandardError (Join-Path $logsDir "frontend.err.log") `
+    -RedirectStandardOutput $frontendLog `
+    -RedirectStandardError $frontendErr `
     -WindowStyle Hidden | Out-Null
 }
 
 Write-Title "XHS Blogger Analyzer"
-Write-Host "This launcher will prepare dependencies, start the local tool, and open the browser."
+Write-Host "This launcher prepares the local tool, starts services, and opens the browser."
+Write-Host "First launch can be slow. Please keep this window open."
 
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 Clear-BrokenLocalProxy
@@ -180,7 +252,7 @@ Ensure-NodePackages
 
 if ($InstallOnly) {
   Write-Host ""
-  Write-Host "Setup finished. You can now double-click start_windows.bat."
+  Write-Ok "Setup finished. Next time, double-click start_windows.bat."
   exit 0
 }
 
@@ -192,15 +264,11 @@ $backendReady = Wait-Url "http://127.0.0.1:8000/api/health" 30
 $frontendReady = Wait-Url "http://127.0.0.1:5173" 45
 
 if (-not $backendReady -or -not $frontendReady) {
-  Write-Host ""
-  Write-Host "The local tool did not start successfully."
-  Write-Host "Please check logs in:"
-  Write-Host $logsDir
-  throw "Local service startup failed"
+  Fail-User "Local tool did not start" "Check logs in: $logsDir"
 }
 
 Write-Host ""
-Write-Host "Local tool is ready."
+Write-Ok "Local tool is ready"
 Write-Host "Opening browser: http://127.0.0.1:5173"
 Start-Process "http://127.0.0.1:5173"
 Write-Host ""
