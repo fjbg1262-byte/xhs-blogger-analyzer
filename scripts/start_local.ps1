@@ -11,11 +11,11 @@ $venvPython = Join-Path $venvDir "Scripts\python.exe"
 $requirements = Join-Path $root "requirements.txt"
 $setupMarker = Join-Path $venvDir ".requirements-installed"
 $frontendDir = Join-Path $root "frontend"
+$frontendDist = Join-Path $frontendDir "dist"
+$frontendIndex = Join-Path $frontendDist "index.html"
 $spiderDir = Join-Path $root "spider_xhs"
 $backendLog = Join-Path $logsDir "backend.log"
 $backendErr = Join-Path $logsDir "backend.err.log"
-$frontendLog = Join-Path $logsDir "frontend.log"
-$frontendErr = Join-Path $logsDir "frontend.err.log"
 $setupLog = Join-Path $logsDir "setup.log"
 $setupErr = Join-Path $logsDir "setup.err.log"
 
@@ -182,25 +182,49 @@ function Ensure-Python {
   }
 }
 
-function Ensure-NodePackages {
+function Ensure-FrontendBuild {
+  if (Test-Path $frontendIndex) {
+    Write-Ok "Web page build is ready"
+    return
+  }
+
   if (-not (Test-Command "npm")) {
     Start-Process "https://nodejs.org/"
-    Fail-User "Node.js was not found" "Install Node.js LTS, then double-click start_windows.bat again."
+    Fail-User "Web page build was not found" "Use the packaged beta zip that includes frontend/dist, or install Node.js LTS to build the web page once."
   }
 
   if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-    Write-Step "Installing web packages. First launch may take a few minutes. Do not close this window."
+    Write-Step "Installing web packages to build the local page. First launch may take a few minutes."
     Invoke-LoggedStep "cmd.exe" @("/c", "npm install") $frontendDir "Install web packages"
   } else {
     Write-Ok "Web packages are ready"
   }
 
-  if ((Test-Path (Join-Path $spiderDir "package.json")) -and -not (Test-Path (Join-Path $spiderDir "node_modules"))) {
-    Write-Step "Installing collector packages. First launch may take a few minutes. Do not close this window."
-    Invoke-LoggedStep "cmd.exe" @("/c", "npm install") $spiderDir "Install collector packages"
-  } else {
-    Write-Ok "Collector packages are ready"
+  Write-Step "Building local web page assets"
+  Invoke-LoggedStep "cmd.exe" @("/c", "npm run build") $frontendDir "Build web page"
+
+  if (-not (Test-Path $frontendIndex)) {
+    Fail-User "Web page build failed" "Expected file was not created: $frontendIndex"
   }
+}
+
+function Ensure-CollectorPackages {
+  if (-not (Test-Path (Join-Path $spiderDir "package.json"))) {
+    return
+  }
+
+  if (Test-Path (Join-Path $spiderDir "node_modules")) {
+    Write-Ok "Collector packages are ready"
+    return
+  }
+
+  if (-not (Test-Command "npm")) {
+    Write-Warn "Collector packages are missing and npm was not found. The page can open, but analysis may fail until the next packaging phase bundles this dependency."
+    return
+  }
+
+  Write-Step "Installing collector packages. First launch may take a few minutes. Do not close this window."
+  Invoke-LoggedStep "cmd.exe" @("/c", "npm install") $spiderDir "Install collector packages"
 }
 
 function Start-Backend {
@@ -220,26 +244,6 @@ function Start-Backend {
     -WindowStyle Hidden | Out-Null
 }
 
-function Start-Frontend {
-  if (Test-Url "http://127.0.0.1:5173") {
-    Write-Ok "Web service is already running"
-    return
-  }
-
-  if (Test-TcpPort "127.0.0.1" 5173) {
-    Fail-User "Web port is busy" "Port 5173 is used by another program. Close that program or restart Windows, then try again."
-  }
-
-  Write-Step "Starting web service"
-  Start-Process `
-    -FilePath "cmd.exe" `
-    -ArgumentList @("/c", "npm run dev -- --host 127.0.0.1") `
-    -WorkingDirectory $frontendDir `
-    -RedirectStandardOutput $frontendLog `
-    -RedirectStandardError $frontendErr `
-    -WindowStyle Hidden | Out-Null
-}
-
 Write-Title "XHS Blogger Analyzer"
 Write-Host "This launcher prepares the local tool, starts services, and opens the browser."
 Write-Host "First launch can be slow. Please keep this window open."
@@ -248,7 +252,8 @@ New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 Clear-BrokenLocalProxy
 
 Ensure-Python
-Ensure-NodePackages
+Ensure-FrontendBuild
+Ensure-CollectorPackages
 
 if ($InstallOnly) {
   Write-Host ""
@@ -257,19 +262,18 @@ if ($InstallOnly) {
 }
 
 Start-Backend
-Start-Frontend
 
 Write-Step "Waiting for local services"
 $backendReady = Wait-Url "http://127.0.0.1:8000/api/health" 30
-$frontendReady = Wait-Url "http://127.0.0.1:5173" 45
+$webReady = Wait-Url "http://127.0.0.1:8000" 30
 
-if (-not $backendReady -or -not $frontendReady) {
+if (-not $backendReady -or -not $webReady) {
   Fail-User "Local tool did not start" "Check logs in: $logsDir"
 }
 
 Write-Host ""
 Write-Ok "Local tool is ready"
-Write-Host "Opening browser: http://127.0.0.1:5173"
-Start-Process "http://127.0.0.1:5173"
+Write-Host "Opening browser: http://127.0.0.1:8000"
+Start-Process "http://127.0.0.1:8000"
 Write-Host ""
 Write-Host "You can close this window. To stop the local tool later, double-click stop_windows.bat."

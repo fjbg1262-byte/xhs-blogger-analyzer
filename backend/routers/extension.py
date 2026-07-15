@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/extension", tags=["extension"])
 
 LOCAL_USERNAME = "local_extension_user"
 LOCAL_PASSWORD_HASH = "local-extension-only"
-FRONTEND_BASE_URL = "http://127.0.0.1:5173"
+FRONTEND_BASE_URL = "http://127.0.0.1:8000"
 
 MSG_COOKIE_REQUIRED = "\u8bf7\u5148\u5728\u5f53\u524d\u6d4f\u89c8\u5668\u91cc\u767b\u5f55\u5c0f\u7ea2\u4e66\uff0c\u7136\u540e\u518d\u70b9\u51fb\u5206\u6790\u3002"
 

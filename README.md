@@ -69,6 +69,8 @@
 - Python 3.9 或更新版本
 - Node.js LTS 版本
 
+说明：阶段十二以后，正式打包 zip 会包含 `frontend/dist`，本地网页由后端 `8000` 端口直接提供，不再需要启动 `5173` 前端开发服务。当前采集链路仍建议保留 Node.js，后续会继续做完整免安装桌面包。
+
 下载或拿到内测压缩包后，先解压，然后双击：
 
 ```text
@@ -80,7 +82,7 @@ start_windows.bat
 浏览器正常会自动打开：
 
 ```text
-http://127.0.0.1:5173
+http://127.0.0.1:8000
 ```
 
 更完整的小白安装说明看这里：
@@ -181,15 +183,28 @@ pip install -r requirements.txt
 uvicorn backend.app:app --reload --port 8000
 ```
 
-前端：
+前端构建：
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run build
 ```
 
 打开：
+
+```text
+http://127.0.0.1:8000
+```
+
+如果需要前端热更新开发，可以单独运行：
+
+```bash
+cd frontend
+npm run dev
+```
+
+此时打开 Vite 开发地址：
 
 ```text
 http://localhost:5173

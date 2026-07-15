@@ -1455,7 +1455,7 @@ start_windows.bat
 
 3. 修改插件地址：
    - `FRONTEND_BASE` 从 `http://127.0.0.1:5173` 改为 `http://127.0.0.1:8000`。
-   - `host_permissions` 保留 `8000`，`5173` 仅开发用。
+   - `host_permissions` 保留 `8000`，公开测试版不再请求 `5173` 权限。
 
 4. 修改启动器：
    - 不再启动 `npm run dev`。
@@ -1480,6 +1480,15 @@ start_windows.bat
 - 打开 `http://127.0.0.1:8000` 能看到前端首页。
 - 插件点击“打开报告”进入 `8000` 页面。
 - `npm run build` 仍在开发机和打包机执行，而不是在用户电脑上执行。
+
+### 18.5 本次实现记录
+
+- `backend/app.py` 已托管 `frontend/dist`，并对非 `/api/*` 路由回退到 `index.html`。
+- 插件 `FRONTEND_BASE` 与扩展登录跳转已切到 `http://127.0.0.1:8000`。
+- `browser-extension/manifest.json` 版本提升到 `0.3.0`，公开测试权限只保留 `8000`。
+- `scripts/start_local.ps1` 不再启动 Vite 开发服务；如果已有 `frontend/dist`，只启动后端服务。
+- `scripts/package_beta.ps1` 会在打包前执行前端构建，并把 `frontend/dist` 放入 zip，同时继续排除 `node_modules`。
+- 阶段十二只解决“网页前端运行不依赖 Node/Vite”；采集签名链路是否仍依赖外部 Node.js，放入阶段十三继续解决。
 
 ## 19. 阶段十三：Python 后端打包为 Windows exe
 

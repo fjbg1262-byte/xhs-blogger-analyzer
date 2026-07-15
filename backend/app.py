@@ -12,8 +12,9 @@ if _spider_node_modules.exists():
         os.environ["NODE_PATH"] = node_path + (os.pathsep + existing if existing else "")
         print(f"[App] Set NODE_PATH={node_path}")
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.database import init_db
@@ -82,4 +83,21 @@ def health():
 # Serve built frontend static files (SPA) — must come AFTER API routes
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    frontend_assets = frontend_dist / "assets"
+    if frontend_assets.exists():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(frontend_assets)),
+            name="frontend-assets",
+        )
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str = ""):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        index_file = frontend_dist / "index.html"
+        if not index_file.exists():
+            raise HTTPException(status_code=404, detail="Frontend build not found")
+        return FileResponse(index_file)

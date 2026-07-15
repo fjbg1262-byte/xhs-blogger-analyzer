@@ -8,6 +8,8 @@ $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $releaseDir = Join-Path $root "release"
 $stageDir = Join-Path $releaseDir "xhs-blogger-analyzer-$Version"
 $zipPath = Join-Path $releaseDir "xhs-blogger-analyzer-$Version.zip"
+$frontendDir = Join-Path $root "frontend"
+$frontendIndex = Join-Path $frontendDir "dist\index.html"
 
 if (Test-Path $stageDir) {
   $resolvedStage = Resolve-Path $stageDir
@@ -19,6 +21,40 @@ if (Test-Path $stageDir) {
 
 if (Test-Path $zipPath) {
   Remove-Item -LiteralPath $zipPath -Force
+}
+
+if (Test-Path $frontendDir) {
+  if (-not (Get-Command "npm" -ErrorAction SilentlyContinue)) {
+    throw "npm was not found. Install Node.js LTS to build frontend/dist before packaging."
+  }
+
+  if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
+    Write-Host "Installing frontend packages..."
+    Push-Location $frontendDir
+    try {
+      npm install
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm install failed in frontend"
+      }
+    } finally {
+      Pop-Location
+    }
+  }
+
+  Write-Host "Building frontend/dist..."
+  Push-Location $frontendDir
+  try {
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm run build failed in frontend"
+    }
+  } finally {
+    Pop-Location
+  }
+
+  if (-not (Test-Path $frontendIndex)) {
+    throw "Frontend build did not create $frontendIndex"
+  }
 }
 
 New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
@@ -59,7 +95,6 @@ $excludeDirs = @(
   "__pycache__",
   ".git",
   ".venv",
-  "dist",
   "release",
   "logs",
   "author",
