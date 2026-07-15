@@ -41,6 +41,7 @@
 xhs-blogger-analyzer/
   install_windows.bat
   start_windows.bat
+  stop_windows.bat
   browser-extension/
   frontend/
   backend/
@@ -59,25 +60,25 @@ xhs-blogger-analyzer/
 
 不要直接在压缩包里面双击文件，一定要先解压。
 
-### 第 2 步：安装依赖
+### 第 2 步：双击启动
 
 打开解压后的文件夹，双击：
 
 ```text
-install_windows.bat
+start_windows.bat
 ```
 
-这个步骤只需要做一次。
+第一次启动时，它会自动准备本地环境并安装依赖。这个步骤可能会比较慢。
 
-如果弹出黑色窗口，不要关闭，等它自动安装。第一次可能会比较慢。
+如果弹出启动窗口，不要关闭，等它自动准备完成。第一次可能会比较慢。
 
 看到类似下面的提示后，说明安装完成：
 
 ```text
-Setup finished. Next time, double-click start_windows.bat.
+Local tool is ready.
 ```
 
-如果提示找不到 Python 或 Node.js，先安装对应软件，再重新双击 `install_windows.bat`。
+如果提示找不到 Python 或 Node.js，先安装对应软件，再重新双击 `start_windows.bat`。
 
 ## 每次使用前：启动本地工具
 
@@ -87,12 +88,8 @@ Setup finished. Next time, double-click start_windows.bat.
 start_windows.bat
 ```
 
-它会打开两个黑色窗口：
-
-- 一个是后端服务。
-- 一个是网页服务。
-
-使用工具时不要关闭这两个窗口。关闭后，插件就连不上本地工具了。
+它会自动启动本地分析工具，并打开浏览器页面。
+第一次启动会安装依赖，所以会更慢；后面再启动会快很多。
 
 正常情况下，浏览器会自动打开：
 
@@ -101,6 +98,12 @@ http://127.0.0.1:5173
 ```
 
 如果没有自动打开，你可以手动复制这个地址到浏览器地址栏。
+
+如果想关闭本地工具，双击：
+
+```text
+stop_windows.bat
+```
 
 ## 安装浏览器插件
 
@@ -182,7 +185,7 @@ https://www.xiaohongshu.com/user/profile/用户ID
 
 ### 插件提示“本地工具没启动”
 
-说明你还没有双击 `start_windows.bat`，或者启动窗口被关掉了。
+说明你还没有双击 `start_windows.bat`，或者本地服务没有正常启动。
 
 解决方法：
 
@@ -242,7 +245,11 @@ https://www.xiaohongshu.com/user/profile/用户ID
 
 ### 关闭工具
 
-关闭两个黑色窗口即可。
+双击：
+
+```text
+stop_windows.bat
+```
 
 ### 删除插件
 

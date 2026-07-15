@@ -6,6 +6,8 @@ __pycache__/
 *.log
 *.err.log
 *.tar.gz
+.venv/
+logs/
 
 # User-generated data (large, don't commit)
 data/all_notes.json

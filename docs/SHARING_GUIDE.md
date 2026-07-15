@@ -40,6 +40,7 @@ release/xhs-blogger-analyzer-beta.zip
 ```text
 install_windows.bat
 start_windows.bat
+stop_windows.bat
 browser-extension/
 frontend/
 backend/
@@ -52,8 +53,8 @@ frontend/package.json
 用户拿到后只需要：
 
 1. 解压。
-2. 双击 `install_windows.bat`。
-3. 双击 `start_windows.bat`。
+2. 双击 `start_windows.bat`。
+3. 等本地网页自动打开。
 4. 按 `docs/USER_GUIDE.md` 安装浏览器插件。
 
 ### 分享渠道
@@ -69,7 +70,7 @@ frontend/package.json
 不建议一开始直接大规模公开扩散，因为：
 
 - 用户电脑环境差异很大。
-- Python / Node.js 安装仍然会卡住一部分人。
+- Python / Node.js 安装仍然会卡住一部分人，但本地依赖安装已经合并进 `start_windows.bat`。
 - 插件开发者模式安装对小白仍然有门槛。
 - 需要先收集真实使用反馈和失败截图。
 
@@ -164,7 +165,7 @@ XHS 博主分析助手测试版来了 🚀
 - 不知道什么是“解压”
 - 不知道在哪里打开扩展管理页
 - 不知道怎么选择 `browser-extension` 文件夹
-- 关闭了黑色窗口导致插件提示本地工具没启动
+- 不知道本地服务是否已经启动，或不知道要用 `stop_windows.bat` 关闭
 - 没有登录小红书
 - 打开的不是博主主页
 

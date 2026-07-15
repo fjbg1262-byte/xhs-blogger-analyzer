@@ -33,7 +33,8 @@ $files = @(
   "analyze_all.py",
   "generate_reports.py",
   "install_windows.bat",
-  "start_windows.bat"
+  "start_windows.bat",
+  "stop_windows.bat"
 )
 
 foreach ($file in $files) {
@@ -57,8 +58,11 @@ $excludeDirs = @(
   "node_modules",
   "__pycache__",
   ".git",
+  ".venv",
   "dist",
   "release",
+  "logs",
+  "author",
   "data",
   "reports",
   "repo",
