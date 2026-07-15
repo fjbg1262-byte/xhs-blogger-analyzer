@@ -1,8 +1,10 @@
 """Subprocess wrapper around generate_reports.py."""
 
 import subprocess
+import sys
 from pathlib import Path
 from backend.config import settings, BASE_DIR
+from backend.runtime import find_resource, is_frozen
 
 
 def generate_reports(
@@ -14,12 +16,21 @@ def generate_reports(
 
     Returns the output directory path containing the markdown reports.
     """
-    cmd = [
-        settings.python_exe,
-        str(BASE_DIR / "generate_reports.py"),
-        "--input", results_path,
-        "--output", output_dir,
-    ]
+    if is_frozen():
+        cmd = [
+            sys.executable,
+            "--xhs-run",
+            "generate_reports",
+            "--input", results_path,
+            "--output", output_dir,
+        ]
+    else:
+        cmd = [
+            settings.python_exe,
+            str(find_resource("generate_reports.py")),
+            "--input", results_path,
+            "--output", output_dir,
+        ]
 
     result = subprocess.run(
         cmd,

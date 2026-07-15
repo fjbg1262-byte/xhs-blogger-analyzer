@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.database import Task, get_db
+from backend.config import settings
 from backend.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -31,11 +32,11 @@ def _get_owned_task(task_id: int, db: Session, current_user: dict) -> Task:
 
 
 def _reports_dir(task_id: int) -> Path:
-    return Path(f"reports/task_{task_id}")
+    return Path(settings.reports_dir) / f"task_{task_id}"
 
 
 def _task_data_dir(task_id: int) -> Path:
-    return Path(f"data/tasks/{task_id}")
+    return Path(settings.data_dir) / "tasks" / str(task_id)
 
 
 def _safe_text(value) -> str:
@@ -191,7 +192,7 @@ async def compare_reports(
 
         summary = {"task_id": tid, "profile": profile_card, "metrics": {}}
 
-        results_file = Path(f"data/tasks/{tid}/results.json")
+        results_file = _task_data_dir(int(tid)) / "results.json"
         if results_file.exists():
             try:
                 results = json.loads(results_file.read_text(encoding="utf-8"))

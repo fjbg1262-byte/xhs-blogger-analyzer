@@ -18,42 +18,39 @@
 先做一个“Windows 内测压缩包”：
 
 ```text
-xhs-blogger-analyzer-beta.zip
+xhs-blogger-analyzer-windows/
 ```
 
-建议使用项目内置脚本生成压缩包，不要手动右键压缩整个项目文件夹：
+建议使用项目内置脚本生成发布目录，再在阶段十四压缩成最终分发包，不要手动右键压缩整个项目文件夹：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package_beta.ps1 -Version beta
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_windows_exe.ps1 -Version windows
 ```
 
 生成后的文件在：
 
 ```text
-release/xhs-blogger-analyzer-beta.zip
+release/xhs-blogger-analyzer-windows/
 ```
 
-这个脚本会尽量排除本地运行数据、报告、数据库、Cookie、`.env`、`node_modules` 等不应该发给用户的内容。
+阶段十三以后，优先使用 Windows exe 打包脚本生成测试包。它会把本地网页构建产物、后端运行入口和必要运行时放进发布目录，同时排除本地运行数据、报告、数据库、Cookie、`.env` 等不应该发给用户的内容。
 
-压缩包里保留：
+发布目录里保留：
 
 ```text
-install_windows.bat
-start_windows.bat
-stop_windows.bat
+XHS分析助手.exe
+关闭本地工具.bat
 browser-extension/
-frontend/
-backend/
 docs/USER_GUIDE.md
-requirements.txt
-package.json
-frontend/package.json
+runtime/
+spider_xhs/
+frontend/dist/
 ```
 
 用户拿到后只需要：
 
 1. 解压。
-2. 双击 `start_windows.bat`。
+2. 双击 `XHS分析助手.exe`。
 3. 等本地网页自动打开。
 4. 按 `docs/USER_GUIDE.md` 安装浏览器插件。
 
@@ -70,7 +67,7 @@ frontend/package.json
 不建议一开始直接大规模公开扩散，因为：
 
 - 用户电脑环境差异很大。
-- Python / Node.js 安装仍然会卡住一部分人，但本地依赖安装已经合并进 `start_windows.bat`。
+- 新版 Windows 测试包已经降低 Python / Node.js 安装门槛，但仍需要在干净电脑上验证运行时是否完整。
 - 插件开发者模式安装对小白仍然有门槛。
 - 需要先收集真实使用反馈和失败截图。
 
@@ -83,7 +80,7 @@ GitHub 账号不是必须的。
 1. 打开项目 GitHub 页面。
 2. 点击右侧或顶部的 `Releases`。
 3. 找到最新版本。
-4. 下载 `xhs-blogger-analyzer-beta.zip`。
+4. 下载 `xhs-blogger-analyzer-windows.zip`。
 5. 解压后按 `USER_GUIDE.md` 操作。
 
 不要让普通用户点 `Code -> Download ZIP`，因为那通常是源码包，不一定包含你准备好的说明、脚本和版本文件。
@@ -153,7 +150,7 @@ XHS 博主分析助手测试版来了 🚀
 
 内测包应该包含：
 
-- `xhs-blogger-analyzer-beta.zip`
+- `xhs-blogger-analyzer-windows.zip`
 - `安装使用说明.md` 或 `docs/USER_GUIDE.md`
 - 1 张安装流程图
 - 1 张插件使用截图
@@ -165,7 +162,7 @@ XHS 博主分析助手测试版来了 🚀
 - 不知道什么是“解压”
 - 不知道在哪里打开扩展管理页
 - 不知道怎么选择 `browser-extension` 文件夹
-- 不知道本地服务是否已经启动，或不知道要用 `stop_windows.bat` 关闭
+- 不知道本地服务是否已经启动，或不知道要用 `关闭本地工具.bat` 关闭
 - 没有登录小红书
 - 打开的不是博主主页
 
@@ -291,8 +288,8 @@ XHS 博主分析助手测试版来了 🚀
 
 现在最应该做：
 
-1. 先运行 `scripts/package_beta.ps1` 生成一份干净内测包。
-2. 自己把 `release/xhs-blogger-analyzer-beta.zip` 解压到一个新文件夹，完整走一遍 `USER_GUIDE.md`。
+1. 先运行 `scripts/build_windows_exe.ps1` 生成一份干净 Windows 发布目录。
+2. 自己把 `release/xhs-blogger-analyzer-windows` 复制或压缩到一个新文件夹，完整走一遍 `USER_GUIDE.md`。
 3. 找 3-5 个完全不懂技术的人，按 `USER_GUIDE.md` 安装。
 4. 让他们只截图，不解释，观察卡在哪里。
 5. 把卡点改成更傻瓜的脚本或图文。

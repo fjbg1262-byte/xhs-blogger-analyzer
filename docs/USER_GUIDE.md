@@ -22,32 +22,30 @@
 - 读取当前浏览器里的登录状态。
 - 把分析请求发送给你电脑上的本地分析工具。
 
-真正负责采集、分析和生成报告的是本地工具，也就是 `backend`、`frontend` 和 `start_windows.bat` 启动的服务。
+真正负责采集、分析和生成报告的是本地工具。新版 Windows 测试包里，它就是 `XHS分析助手.exe` 启动的本地服务。
 
 所以只安装 `browser-extension` 文件夹是不够的。  
-如果没有先启动 `start_windows.bat`，插件会提示“本地工具没启动”，也无法生成报告。
+如果没有先启动本地工具，插件会提示“本地工具没启动”，也无法生成报告。
 
 ## 你需要准备什么
 
 需要一台 Windows 电脑，并安装：
 
 - Chrome 浏览器或 Edge 浏览器。
-- Python 3.9 或更新版本。
-- Node.js LTS 版本。
 
-说明：阶段十二以后，打包好的测试版会把网页构建产物放进压缩包，启动本地网页不再需要单独运行前端开发服务。当前采集链路仍建议保留 Node.js，后续阶段会继续做成更完整的免安装桌面包。
+如果你拿到的是新版 Windows 测试包，一般不需要自己安装 Python 和 Node.js。
+如果你拿到的是源码包，或者作者明确说这是“开发版源码包”，才需要额外安装 Python / Node.js。
 
 如果你拿到的是作者打包好的内测压缩包，里面应该包含：
 
 ```text
 xhs-blogger-analyzer/
-  install_windows.bat
-  start_windows.bat
-  stop_windows.bat
+  XHS分析助手.exe
+  关闭本地工具.bat
   browser-extension/
-  frontend/
-  backend/
   docs/
+  data/
+  logs/
 ```
 
 ## 第一次安装
@@ -67,31 +65,31 @@ xhs-blogger-analyzer/
 打开解压后的文件夹，双击：
 
 ```text
-start_windows.bat
+XHS分析助手.exe
 ```
 
-第一次启动时，它会自动准备本地环境并安装依赖。这个步骤可能会比较慢。
+第一次启动可能会慢一点，这是正常的。
 
-如果弹出启动窗口，不要关闭，等它自动准备完成。第一次可能会比较慢。
+如果弹出黑色窗口，不要关闭。使用工具时让它保持打开。
 
 看到类似下面的提示后，说明安装完成：
 
 ```text
-Local tool is ready.
+Starting local service: http://127.0.0.1:8000
 ```
 
-如果提示找不到 Python 或 Node.js，先安装对应软件，再重新双击 `start_windows.bat`。
+正常情况下，浏览器会自动打开本地工具页面。
 
 ## 每次使用前：启动本地工具
 
 打开工具文件夹，双击：
 
 ```text
-start_windows.bat
+XHS分析助手.exe
 ```
 
 它会自动启动本地分析工具，并打开浏览器页面。
-第一次启动会安装依赖，所以会更慢；后面再启动会快很多。
+使用工具时不要关闭启动窗口。关闭后，本地工具也会停止。
 
 正常情况下，浏览器会自动打开：
 
@@ -104,7 +102,7 @@ http://127.0.0.1:8000
 如果想关闭本地工具，双击：
 
 ```text
-stop_windows.bat
+关闭本地工具.bat
 ```
 
 ## 安装浏览器插件
@@ -162,7 +160,7 @@ browser-extension
 
 ## 怎么分析一个博主
 
-1. 先确认 `start_windows.bat` 已经启动，本地网页能打开。
+1. 先确认 `XHS分析助手.exe` 已经启动，本地网页能打开。
 2. 在 Chrome 或 Edge 里登录小红书。
 3. 打开你想分析的博主主页。
 4. 点击浏览器右上角的插件图标。
@@ -187,15 +185,15 @@ https://www.xiaohongshu.com/user/profile/用户ID
 
 ### 插件提示“本地工具没启动”
 
-说明你还没有双击 `start_windows.bat`，或者本地服务没有正常启动。
+说明你还没有双击 `XHS分析助手.exe`，或者本地服务没有正常启动。
 
 解决方法：
 
 1. 回到工具文件夹。
-2. 双击 `start_windows.bat`。
+2. 双击 `XHS分析助手.exe`。
 3. 等网页打开后，再点插件分析。
 
-如果 `start_windows.bat` 提示启动失败，可以把工具文件夹里的 `logs` 文件夹截图或打包发给作者排查。
+如果 `XHS分析助手.exe` 提示启动失败，可以把工具文件夹里的 `logs` 文件夹截图或打包发给作者排查。
 
 ### 插件提示“先打开博主主页”
 
@@ -252,7 +250,7 @@ https://www.xiaohongshu.com/user/profile/用户ID
 双击：
 
 ```text
-stop_windows.bat
+关闭本地工具.bat
 ```
 
 ### 删除插件

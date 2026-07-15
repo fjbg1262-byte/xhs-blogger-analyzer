@@ -1569,6 +1569,47 @@ xhs-blogger-analyzer-windows/
 - 日志、数据库、报告都写入 exe 同级 `data/` 或 `logs/`。
 - 删除整个文件夹即可卸载，不残留系统服务。
 
+### 19.5 本次实现记录
+
+- 新增 `desktop_entry.py` 作为 Windows exe 入口：
+  - 普通模式：启动 FastAPI 本地服务并自动打开 `http://127.0.0.1:8000`。
+  - 隐藏 CLI 模式：`--xhs-run analyze_all` / `--xhs-run generate_reports`，供后端子进程调用同一个 exe 完成分析和报告生成。
+- 新增 `backend/runtime.py`：
+  - 区分源码运行、PyInstaller 运行、exe 同级资源目录。
+  - 默认把 `data/`、`reports/`、`logs/` 写到 exe 同级目录。
+  - 优先使用包内 `runtime/node/node.exe` 和 `spider_xhs/node_modules`。
+- 后端路径改造：
+  - `settings.database_url` 默认指向可写 `data/app.db`。
+  - `settings.spider_xhs_dir` 支持 exe 同级 `spider_xhs`。
+  - 报告接口统一读取 `settings.reports_dir` 和 `settings.data_dir`。
+  - 前端静态资源从 `frontend/dist` 读取，兼容 exe 同级资源。
+- 子进程改造：
+  - 源码模式仍可调用 `python analyze_all.py` / `python generate_reports.py`。
+  - exe 模式调用同一个 `XHS分析助手.exe --xhs-run ...`，不再要求用户安装 Python。
+- 新增 `scripts/build_windows_exe.ps1`：
+  - 自动构建 `frontend/dist`。
+  - 自动准备 `spider_xhs/node_modules`。
+  - 自动安装并执行 PyInstaller `--onedir`。
+  - 输出 `release/xhs-blogger-analyzer-windows/`。
+  - 复制 `XHS分析助手.exe`、`browser-extension/`、`docs/`、`frontend/dist`、`static/`、`spider_xhs/`、`runtime/node/node.exe`。
+  - 生成 `关闭本地工具.bat`。
+  - 构建时会忽略失效的本地代理，避免 pip/npm 被坏代理卡住。
+
+### 19.6 本次验证记录
+
+- `python -m py_compile backend/runtime.py backend/config.py backend/app.py backend/routers/reports.py backend/services/analyzer.py backend/services/reporter.py backend/tasks/worker.py desktop_entry.py` 通过。
+- `python tests/regression_topic_classification.py` 通过。
+- `python desktop_entry.py --xhs-run analyze_all ...` 与 `generate_reports` 通过。
+- `scripts/build_windows_exe.ps1 -Version windows` 成功生成 `release/xhs-blogger-analyzer-windows/`。
+- `XHS分析助手.exe --xhs-run analyze_all ...` 与 `generate_reports` 通过，验证 exe 分析链路不依赖系统 Python。
+- 直接启动 `XHS分析助手.exe` 后，`http://127.0.0.1:8000/api/health`、`/`、`/dashboard` 均返回 200。
+
+### 19.7 剩余风险
+
+- 已随包携带 `node.exe` 和 `spider_xhs/node_modules`，理论上不要求用户安装 Node.js；仍需在一台未安装 Node.js 的干净 Windows 机器上做一次真实小红书采集验证。
+- 当前是 onedir 包，目录较大但更稳定；阶段十四再做面向内测用户的 zip 命名、压缩、下载页和安装说明。
+- 没有代码签名，Windows SmartScreen 可能提示未知发布者。
+
 ## 20. 阶段十四：Windows 桌面内测包
 
 ### 20.1 目标

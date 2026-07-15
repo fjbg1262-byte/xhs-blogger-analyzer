@@ -1,16 +1,10 @@
 """FastAPI application entry point — sync version."""
 
 import os
-from pathlib import Path
 
-# Ensure Node.js can find spider_xhs/node_modules for signature verification
-_spider_node_modules = Path(__file__).resolve().parent.parent / "spider_xhs" / "node_modules"
-if _spider_node_modules.exists():
-    existing = os.environ.get("NODE_PATH", "")
-    node_path = str(_spider_node_modules)
-    if node_path not in existing:
-        os.environ["NODE_PATH"] = node_path + (os.pathsep + existing if existing else "")
-        print(f"[App] Set NODE_PATH={node_path}")
+from backend.runtime import configure_runtime_environment, find_resource
+
+configure_runtime_environment()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,8 +37,9 @@ app.add_middleware(
 def startup():
     print("[App] Initializing database...")
     os.makedirs(settings.data_dir, exist_ok=True)
-    os.makedirs("reports", exist_ok=True)
-    os.makedirs("cookies", exist_ok=True)
+    os.makedirs(settings.reports_dir, exist_ok=True)
+    os.makedirs(settings.logs_dir, exist_ok=True)
+    os.makedirs(os.path.join(settings.data_dir, "cookies"), exist_ok=True)
     os.makedirs(os.path.join(settings.data_dir, "tasks"), exist_ok=True)
     init_db()
 
@@ -81,7 +76,7 @@ def health():
 
 
 # Serve built frontend static files (SPA) — must come AFTER API routes
-frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+frontend_dist = find_resource("frontend", "dist")
 if frontend_dist.exists():
     frontend_assets = frontend_dist / "assets"
     if frontend_assets.exists():

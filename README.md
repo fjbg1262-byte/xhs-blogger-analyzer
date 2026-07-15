@@ -63,21 +63,19 @@
 
 当前测试版主要支持 Windows + Chrome / Edge。
 
-你需要先安装：
+如果你拿到的是新版 Windows 测试包，通常只需要先安装：
 
 - Chrome 浏览器或 Edge 浏览器
-- Python 3.9 或更新版本
-- Node.js LTS 版本
 
-说明：阶段十二以后，正式打包 zip 会包含 `frontend/dist`，本地网页由后端 `8000` 端口直接提供，不再需要启动 `5173` 前端开发服务。当前采集链路仍建议保留 Node.js，后续会继续做完整免安装桌面包。
+Python、Node.js 已经由 Windows 测试包处理，不需要普通用户自己安装。只有源码开发/自行打包时才需要 Python 和 Node.js。
 
 下载或拿到内测压缩包后，先解压，然后双击：
 
 ```text
-start_windows.bat
+XHS分析助手.exe
 ```
 
-第一次启动会自动准备本地环境并安装依赖，可能会慢一点。以后再双击同一个文件，就会直接启动本地工具并打开浏览器。
+第一次启动可能会慢一点。以后再双击同一个文件，就会直接启动本地工具并打开浏览器。
 
 浏览器正常会自动打开：
 
@@ -123,17 +121,17 @@ browser-extension
 
 ## 日常使用步骤
 
-1. 双击 `start_windows.bat`，启动本地工具。
+1. 双击 `XHS分析助手.exe`，启动本地工具。
 2. 在 Chrome 或 Edge 里登录小红书。
 3. 打开要分析的博主主页。
 4. 点击浏览器右上角插件图标。
 5. 点击“分析当前博主”。
 6. 等报告页面生成。
 
-使用结束后，可以双击 `stop_windows.bat` 关闭本地服务。
+使用结束后，可以双击 `关闭本地工具.bat` 关闭本地服务。
 
 如果插件提示“先打开博主主页”，说明当前页面不是博主主页。  
-如果插件提示“本地工具没启动”，说明 `start_windows.bat` 没有启动，或者本地服务没有正常运行。
+如果插件提示“本地工具没启动”，说明 `XHS分析助手.exe` 没有启动，或者本地服务没有正常运行。
 
 ## 隐私和使用边界
 
@@ -153,16 +151,16 @@ browser-extension
 
 ## 给维护者
 
-生成一份适合分发的内测压缩包：
+生成一份适合分发的 Windows 发布目录：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package_beta.ps1 -Version beta
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_windows_exe.ps1 -Version windows
 ```
 
 生成文件：
 
 ```text
-release/xhs-blogger-analyzer-beta.zip
+release/xhs-blogger-analyzer-windows/
 ```
 
 分发和上线建议看：

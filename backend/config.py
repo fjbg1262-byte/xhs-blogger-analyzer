@@ -1,8 +1,11 @@
 """Application configuration — pydantic V1 compatible."""
 
 import os
+import sys
 from pathlib import Path
 from pydantic import BaseSettings
+
+from backend.runtime import app_root, find_resource, writable_path
 
 
 # Provider presets: (default_api_url, default_model)
@@ -18,9 +21,11 @@ PROVIDER_PRESETS = {
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./data/app.db"
+    database_url: str = ""
     python_exe: str = "python"
     data_dir: str = ""
+    reports_dir: str = ""
+    logs_dir: str = ""
     spider_xhs_dir: str = ""
 
     # LLM provider settings
@@ -44,11 +49,20 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        base = str(Path(__file__).parent.parent)
+        base = str(app_root())
         if not self.data_dir:
-            self.data_dir = os.path.join(base, "data")
+            self.data_dir = str(writable_path("data"))
+        if not self.reports_dir:
+            self.reports_dir = str(writable_path("reports"))
+        if not self.logs_dir:
+            self.logs_dir = str(writable_path("logs"))
+        if not self.database_url:
+            db_path = Path(self.data_dir) / "app.db"
+            self.database_url = f"sqlite:///{db_path.as_posix()}"
+        if getattr(sys, "frozen", False):
+            self.python_exe = sys.executable
         if not self.spider_xhs_dir:
-            self.spider_xhs_dir = os.path.join(base, "spider_xhs")
+            self.spider_xhs_dir = str(find_resource("spider_xhs"))
 
         # Auto-fill LLM API URL and model from provider preset
         preset = PROVIDER_PRESETS.get(self.llm_provider)
@@ -61,4 +75,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-BASE_DIR = Path(__file__).parent.parent
+BASE_DIR = app_root()
