@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "XHS Analyzer Helper",
+  "version": "0.2.0",
+  "description": "Analyze the current Xiaohongshu blogger with the local XHS Blogger Analyzer.",
+  "permissions": ["activeTab", "cookies", "clipboardWrite"],
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*",
+    "https://*.xiaohongshu.com/*",
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:5173/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "XHS Analyzer Helper"
+  }
+}

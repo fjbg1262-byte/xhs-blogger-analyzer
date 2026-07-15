@@ -1,0 +1,10 @@
+PyExecJS
+requests
+loguru
+python-dotenv
+retry
+openpyxl
+aiohttp
+opencv-python
+numpy
+qrcode

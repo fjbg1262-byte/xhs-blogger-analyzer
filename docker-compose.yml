@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - data:/app/data
+      - reports:/app/reports
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+volumes:
+  data:
+  reports:

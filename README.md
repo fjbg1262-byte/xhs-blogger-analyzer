@@ -1,148 +1,195 @@
-# 小红书博主深度分析工具
+# XHS 博主分析助手
 
-> AI 驱动的小红书博主研究管线，一键输出 8 维度深度分析报告。
+一个面向新手博主和小运营团队的本地分析工具。  
+打开小红书博主主页，点击浏览器插件，就能把近 100 篇公开内容整理成一份可阅读的分析报告。
 
-输入任意小红书博主主页 URL，自动完成：**数据采集 → 量化分析 → 结构化报告**，全程 < 10 分钟。
+> 当前是测试版，本项目不是小红书官方工具。请只用于公开主页内容的学习、复盘和选题参考。
 
----
+![产品首页](docs/images/home-dashboard.png)
 
-## 效果预览
+## 它能帮你做什么
 
-分析 [@数字生命卡兹克](https://www.xiaohongshu.com/user/profile/62c98736000000001501e075) 的 413 条笔记后产出的报告：
+如果你经常想研究一个对标账号，但不想手动抄表格、翻笔记、算点赞，这个工具可以帮你把这些事情自动整理出来：
 
-| 报告 | 内容 |
-|------|------|
-| [博主画像卡片](reports/00_博主画像卡片.md) | 定位、人设、受众 |
-| [内容结构分析](reports/01_内容结构分析.md) | 8 类主题分布、图文 vs 视频对比 |
-| [标题与文案分析](reports/02_标题与文案分析.md) | 8 种标题公式、Hook 模式 |
-| [互动归因分析](reports/03_互动归因分析.md) | 帕累托分析、Top vs Bottom 对比 |
-| [成长轨迹分析](reports/04_成长轨迹分析.md) | 4 阶段划分、关键转折点 |
-| [标签与SEO分析](reports/05_标签与SEO分析.md) | 标签组合策略、效率排名 |
-| [商业化分析](reports/06_商业化分析.md) | 变现路径、商业 vs 自然对比 |
-| [竞争定位分析](reports/07_竞争定位分析.md) | 生态位、可复制性 |
-| [策略建议与行动计划](reports/08_策略建议与行动计划.md) | 模板库、行动清单 |
+- 看这个账号目前最值得学习的内容主线
+- 找出表现更好的主题、标题和选题方向
+- 展示每个判断背后的真实样本证据
+- 生成主题地图、关键洞察和下一步行动建议
+- 保留原来的 9 维深度分析，适合继续细看
+- 本地运行，不需要手动复制 Cookie，不默认上传到作者服务器
 
----
+## 使用方式很简单
 
-## 快速开始
+先启动本地工具，然后在浏览器里登录小红书，打开一个博主主页，点插件里的“分析当前博主”。
 
-### 前置条件
+![插件弹窗](docs/images/extension-popup.png)
 
-- **Node.js** 18+（用于 Playwright 数据采集）
-- **Python** 3.8+（用于分析和报告生成）
-- **Chrome/Edge**（Playwright 会下载 Chromium）
+插件会把当前博主主页交给你电脑上的本地分析工具处理。分析完成后，会自动生成报告页面。
 
-### 安装
+## 报告长什么样
+
+报告首页会先给出最重要的结论：这个账号值得学习什么、样本够不够、数据是否可靠、哪些模块因为数据不足被降级。
+
+![报告总览](docs/images/report-overview.png)
+
+继续往下看，可以看到关键洞察和主题地图。主题不是只靠固定关键词硬套，而是会结合账号自己的标题和正文，尽量识别这个账号真实反复出现的内容线。
+
+![关键洞察和主题地图](docs/images/insights-topic-map.png)
+
+原来的 9 维分析不会被藏起来，而是改成了可继续深入查看的模块。
+
+![九维深度分析](docs/images/deep-analysis.png)
+
+## 适合谁
+
+适合：
+
+- 刚开始做小红书的新手博主
+- 想研究对标账号的小运营团队
+- 想快速复盘账号内容结构的人
+- 想把公开内容整理成选题参考的人
+
+暂时不适合：
+
+- 想做大规模监控的人
+- 想批量高频采集很多账号的人
+- 想得到平台官方数据结论的人
+- 完全不愿意安装本地工具的人
+
+## 第一次怎么安装
+
+当前测试版主要支持 Windows + Chrome / Edge。
+
+你需要先安装：
+
+- Chrome 浏览器或 Edge 浏览器
+- Python 3.9 或更新版本
+- Node.js LTS 版本
+
+下载或拿到内测压缩包后，先解压，然后双击：
+
+```text
+install_windows.bat
+```
+
+这个步骤只需要做一次。安装完成后，以后每次使用前双击：
+
+```text
+start_windows.bat
+```
+
+浏览器正常会自动打开：
+
+```text
+http://127.0.0.1:5173
+```
+
+更完整的小白安装说明看这里：
+
+[docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+
+## 安装浏览器插件
+
+Chrome 地址栏输入：
+
+```text
+chrome://extensions/
+```
+
+Edge 地址栏输入：
+
+```text
+edge://extensions/
+```
+
+打开开发者模式后，点击“加载已解压的扩展程序”或“加载解压缩的扩展”。
+
+![加载解压扩展](docs/images/load-unpacked.png)
+
+选择项目里的这个文件夹：
+
+```text
+browser-extension
+```
+
+看到 `XHS Analyzer Helper` 出现在扩展列表里，就说明插件装好了。
+
+![插件安装成功](docs/images/extension-installed.png)
+
+可以把插件固定到浏览器工具栏，之后使用会更方便。
+
+![固定插件](docs/images/pin-extension.png)
+
+## 日常使用步骤
+
+1. 双击 `start_windows.bat`，启动本地工具。
+2. 在 Chrome 或 Edge 里登录小红书。
+3. 打开要分析的博主主页。
+4. 点击浏览器右上角插件图标。
+5. 点击“分析当前博主”。
+6. 等报告页面生成。
+
+如果插件提示“先打开博主主页”，说明当前页面不是博主主页。  
+如果插件提示“本地工具没启动”，说明 `start_windows.bat` 没有启动，或者黑色窗口被关掉了。
+
+## 隐私和使用边界
+
+这个工具是本地优先：
+
+- 插件只把必要信息发送到你自己电脑上的 `127.0.0.1`
+- 不需要你手动复制 Cookie
+- 不需要你提供小红书密码
+- 不会默认上传数据到作者服务器
+
+为了降低异常访问风险，建议：
+
+- 一次只分析一个账号
+- 不要连续高频分析大量账号
+- 报告只作为样本观察，不要说成平台官方数据
+- 遇到登录失效、请求失败或页面提示异常时，先停止任务
+
+## 给维护者
+
+生成一份适合分发的内测压缩包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package_beta.ps1 -Version beta
+```
+
+生成文件：
+
+```text
+release/xhs-blogger-analyzer-beta.zip
+```
+
+分发和上线建议看：
+
+[docs/SHARING_GUIDE.md](docs/SHARING_GUIDE.md)
+
+产品规划和开发计划看：
+
+[docs/MVP_PRD.md](docs/MVP_PRD.md)  
+[docs/MVP_DEVELOPMENT_PLAN.md](docs/MVP_DEVELOPMENT_PLAN.md)
+
+## 开发启动
+
+后端：
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/fjbg1262-byte/xhs-blogger-analyzer
-cd xhs-blogger-analyzer
+pip install -r requirements.txt
+uvicorn backend.app:app --reload --port 8000
+```
 
-# 2. 安装 Node.js 依赖
+前端：
+
+```bash
+cd frontend
 npm install
-
-# 3. 安装 Playwright 浏览器（首次需要）
-npx playwright install chromium
-
-# 4. 安装 Claude Code Skill（可选，用 Claude 自动执行）
-cp skill/xhs-blogger-deep-research.md ~/.claude/skills/
+npm run dev
 ```
 
-### 使用
+打开：
 
-#### 方式 A：Claude Code 自动执行（推荐）
-
-```bash
-# 打开 Claude Code
-claude
-
-# 在对话中输入：
-/xhs-blogger-deep-research
-
-# 然后按 Claude 的引导操作（提供博主 URL + Cookie 即可）
+```text
+http://localhost:5173
 ```
-
-#### 方式 B：手动分步执行
-
-```bash
-# Step 1: 采集笔记数据
-node scrape.js --url "https://www.xiaohongshu.com/user/profile/用户ID" --cookies cookies.json
-
-# Step 2: 量化分析
-python analyze_all.py --notes ./data/all_notes.json --output ./data/results.json
-
-# Step 3: 生成报告
-python generate_reports.py --input ./data/results.json --output ./reports
-```
-
----
-
-## 获取 Cookie
-
-小红书 API 需要登录态，需要从浏览器导出 Cookie：
-
-1. 用 Chrome 打开 [xiaohongshu.com](https://www.xiaohongshu.com) 并登录
-2. 按 `F12` 打开开发者工具 → `Application` → `Cookies` → `xiaohongshu.com`
-3. 全选 Cookie 条目 → `Export as JSON`（或用 [EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg) 插件）
-4. 保存为 `cookies.json` 放到项目目录
-
-> ⚠️ Cookie 有有效期，过期后需要重新导出。Cookie 文件请勿提交到 Git。
-
----
-
-## 输出说明
-
-```
-xhs-blogger-analyzer/
-├── data/
-│   └── all_notes.json      # 采集到的笔记原始数据
-│   └── results.json         # 量化分析结果（所有指标）
-├── reports/                 # 生成的报告文件
-│   ├── 00_博主画像卡片.md
-│   ├── 01_内容结构分析.md
-│   ├── ...
-│   └── README.md            # 报告索引
-```
-
----
-
-## 分析框架
-
-| 维度 | 方法 | 输出 |
-|------|------|------|
-| 博主画像 | 人设要素拆解 + 受众推断 | 画像卡片 |
-| 内容结构 | 8 类主题分类 + 图文/视频对比 | 分布表 |
-| 标题与文案 | 8 特征量化 + 8 公式检测 + Hook 分析 | 公式库 |
-| 互动归因 | 帕累托分析 + Top/Bottom 对比 | 归因表 |
-| 成长轨迹 | 断点检测 + 阶段划分 + 转折点分析 | 时间线 |
-| 标签与SEO | 频率统计 + 共现分析 + 效率排名 | 标签排行 |
-| 商业化 | 商业信号检测 + 变现路径分析 | 商业化报告 |
-| 竞争定位 | 生态位 + 可复制性 | 定位分析 |
-
----
-
-## 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 浏览器自动化 | Playwright (Chromium) |
-| 数据采集 | API 拦截 + Cookie 注入 |
-| 量化分析 | Python 标准库 |
-| 报告生成 | Python Markdown |
-| AI 编排 | Claude Code Skill |
-
----
-
-## 免责声明
-
-- 本工具仅用于**学术研究和内容分析**
-- 采集的数据均为**公开可见信息**
-- 请遵守小红书用户协议，合理使用
-- 不得用于任何商业爬取、数据倒卖等违规行为
-
----
-
-## License
-
-MIT

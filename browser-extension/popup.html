@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XHS Analyzer Helper</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header class="brand-bar">
+        <div class="brand-mark">析</div>
+        <div class="brand-name">
+          <strong>博主分析助手</strong>
+          <span>Chrome / Edge 本地插件</span>
+        </div>
+        <span class="version">测试版</span>
+      </header>
+
+      <section class="launch-copy">
+        <span class="launch-label">🚀 一键生成分析报告</span>
+        <h1>打开博主主页<br />现在就能分析</h1>
+        <div class="feature-chips">
+          <span>🎯 近100篇</span>
+          <span>🔎 看证据</span>
+          <span>📝 行动计划</span>
+        </div>
+      </section>
+
+      <section class="status" id="statusBox">
+        <div class="status-copy">
+          <div class="status-title" id="statusTitle">等待检查</div>
+          <div class="status-detail" id="statusDetail">请先登录小红书，并打开要分析的博主主页。</div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="analyzeBtn" type="button" class="primary">🎯 分析当前博主</button>
+        <div class="secondary-grid">
+          <button id="checkBtn" type="button" class="secondary">✓ 检查状态</button>
+          <button id="openAppBtn" type="button" class="secondary">↗ 打开报告</button>
+        </div>
+        <div class="tool-grid">
+          <button id="openXhsBtn" type="button" class="ghost">打开小红书</button>
+          <button id="copyBtn" type="button" class="ghost" disabled>复制凭证</button>
+          <button id="downloadBtn" type="button" class="ghost" disabled>下载凭证</button>
+        </div>
+      </div>
+
+      <p class="note"><span>🛡️</span> 登录信息只发送到你电脑上的本地分析工具</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

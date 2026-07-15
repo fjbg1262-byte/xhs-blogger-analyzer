@@ -1,0 +1,16 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+.git/
+.gitignore
+data/
+reports/
+cookies/
+spider_xhs/node_modules/
+frontend/node_modules/
+.DS_Store
+Thumbs.db
+*.md
+*.zip
+*.gz

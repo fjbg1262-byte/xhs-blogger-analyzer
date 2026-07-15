@@ -1,0 +1,85 @@
+"""FastAPI application entry point — sync version."""
+
+import os
+from pathlib import Path
+
+# Ensure Node.js can find spider_xhs/node_modules for signature verification
+_spider_node_modules = Path(__file__).resolve().parent.parent / "spider_xhs" / "node_modules"
+if _spider_node_modules.exists():
+    existing = os.environ.get("NODE_PATH", "")
+    node_path = str(_spider_node_modules)
+    if node_path not in existing:
+        os.environ["NODE_PATH"] = node_path + (os.pathsep + existing if existing else "")
+        print(f"[App] Set NODE_PATH={node_path}")
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from backend.database import init_db
+from backend.config import settings
+from backend.tasks.worker import init_worker
+from backend.routers import ai, auth, cookies, extension, llm_config, reports, tasks
+
+app = FastAPI(
+    title="XHS Blogger Analyzer",
+    description="小红书博主深度分析平台 — AI 驱动的 8 维度内容分析",
+    version="1.0.0",
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Startup event
+@app.on_event("startup")
+def startup():
+    print("[App] Initializing database...")
+    os.makedirs(settings.data_dir, exist_ok=True)
+    os.makedirs("reports", exist_ok=True)
+    os.makedirs("cookies", exist_ok=True)
+    os.makedirs(os.path.join(settings.data_dir, "tasks"), exist_ok=True)
+    init_db()
+
+    # Check Spider_XHS
+    if not os.path.exists(settings.spider_xhs_dir):
+        print(f"[App] WARNING: Spider_XHS not found at {settings.spider_xhs_dir}")
+        print("[App] Clone it with: git clone https://github.com/cv-cat/Spider_XHS.git spider_xhs")
+
+    init_worker()
+    print("[App] Startup complete")
+
+
+# Register routers
+app.include_router(auth.router)
+app.include_router(cookies.router)
+app.include_router(tasks.router)
+app.include_router(reports.router)
+app.include_router(ai.router)
+app.include_router(llm_config.router)
+app.include_router(extension.router)
+
+
+@app.get("/api/health")
+def health():
+    return {
+        "status": "ok",
+        "spider_xhs_available": os.path.exists(settings.spider_xhs_dir),
+        "limits": {
+            "max_notes_per_task": settings.max_notes_per_task,
+            "max_active_tasks_per_user": settings.max_active_tasks_per_user,
+            "max_competitor_count": settings.max_competitor_count,
+        },
+    }
+
+
+# Serve built frontend static files (SPA) — must come AFTER API routes
+frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

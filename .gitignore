@@ -3,14 +3,33 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+*.log
+*.err.log
+*.tar.gz
 
 # User-generated data (large, don't commit)
 data/all_notes.json
 data/contents.json
 data/results.json
+data/tasks/
+data/app.db
+data/app.db-journal
+data/database.db
+data/llm_config.json
+debug_api.json
+release/
+reports/
+repo/
+repo_yize/
+image/
+spider_xhs/author/
 
 # Cookies (user secrets — NEVER commit)
 cookies.json
+
+# Frontend
+frontend/dist/
+frontend/node_modules/
 
 # OS
 .DS_Store
