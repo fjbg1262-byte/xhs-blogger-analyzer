@@ -151,16 +151,16 @@ browser-extension
 
 ## 给维护者
 
-生成一份适合分发的 Windows 发布目录：
+生成一份适合分发的 Windows 内测 zip：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_windows_exe.ps1 -Version windows
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Version test
 ```
 
 生成文件：
 
 ```text
-release/xhs-blogger-analyzer-windows/
+release/XHS博主分析助手-Windows测试版.zip
 ```
 
 分发和上线建议看：

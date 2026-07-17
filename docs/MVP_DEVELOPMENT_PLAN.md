@@ -1663,6 +1663,52 @@ XHS博主分析助手-Windows测试版.zip
 - 用户不需要安装 Node.js。
 - 用户仍然需要手动安装浏览器插件，但说明足够清晰。
 
+### 20.4 本次实现记录
+
+阶段十四已完成第一版 Windows 桌面内测包能力：
+
+1. 新增 `scripts/package_windows_release.ps1`：
+   - 默认调用阶段十三的 `scripts/build_windows_exe.ps1` 生成 exe 发布目录。
+   - 复制到干净 staging 目录后再压缩。
+   - 自动排除 `data/app.db`、`data/tasks`、`logs`、`reports`、Cookie、`.env`、日志、pyc 等运行期数据。
+   - 自动生成 `checksums.sha256`。
+   - 自动校验关键文件存在：`XHS分析助手.exe`、`关闭本地工具.bat`、`browser-extension/manifest.json`、`frontend/dist/index.html`、`runtime/node/node.exe`、离线说明等。
+
+2. 新增 `docs/PACKAGED_USER_GUIDE.html`：
+   - 用于生成包根目录的 `使用说明.html`。
+   - 离线可打开，图片使用包内 `docs/images/` 相对路径。
+   - 覆盖解压、启动、Chrome/Edge 插件安装、分析博主、常见问题、隐私边界、反馈材料。
+
+3. 发布包用户第一眼文件：
+   - `XHS分析助手.exe`
+   - `使用说明.html`
+   - `README-先看我.txt`
+   - `关闭本地工具.bat`
+   - `browser-extension/`
+
+4. 文档同步：
+   - `README.md`、`docs/SHARING_GUIDE.md`、`docs/USER_GUIDE.md` 已切换到阶段十四 zip 分发口径。
+
+### 20.5 验收口径
+
+阶段十四生成命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Version test
+```
+
+目标产物：
+
+```text
+release/XHS博主分析助手-Windows测试版.zip
+```
+
+当前仍需真实验证：
+
+- 在一台未安装 Python / Node.js 的干净 Windows 电脑上解压测试。
+- 确认 Windows SmartScreen 提示是否会显著阻断小白用户。
+- 找 3-5 个非技术用户按 `使用说明.html` 独立安装，记录卡点。
+
 ## 21. 阶段十五：正式分发与安装器
 
 ### 21.1 目标

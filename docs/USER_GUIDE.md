@@ -42,6 +42,8 @@
 xhs-blogger-analyzer/
   XHS分析助手.exe
   关闭本地工具.bat
+  使用说明.html
+  README-先看我.txt
   browser-extension/
   docs/
   data/

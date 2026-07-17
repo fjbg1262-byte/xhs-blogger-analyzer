@@ -21,19 +21,19 @@
 xhs-blogger-analyzer-windows/
 ```
 
-建议使用项目内置脚本生成发布目录，再在阶段十四压缩成最终分发包，不要手动右键压缩整个项目文件夹：
+建议使用项目内置脚本生成最终分发包，不要手动右键压缩整个项目文件夹：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_windows_exe.ps1 -Version windows
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Version test
 ```
 
 生成后的文件在：
 
 ```text
-release/xhs-blogger-analyzer-windows/
+release/XHS博主分析助手-Windows测试版.zip
 ```
 
-阶段十三以后，优先使用 Windows exe 打包脚本生成测试包。它会把本地网页构建产物、后端运行入口和必要运行时放进发布目录，同时排除本地运行数据、报告、数据库、Cookie、`.env` 等不应该发给用户的内容。
+阶段十四以后，优先使用 Windows 发布包脚本生成测试包。它会先复用 exe 构建结果，再生成干净 staging 目录、离线图文说明、版本说明、校验清单，并排除本地运行数据、报告、数据库、Cookie、`.env` 等不应该发给用户的内容。
 
 发布目录里保留：
 
@@ -41,6 +41,10 @@ release/xhs-blogger-analyzer-windows/
 XHS分析助手.exe
 关闭本地工具.bat
 browser-extension/
+使用说明.html
+README-先看我.txt
+版本说明.txt
+checksums.sha256
 docs/USER_GUIDE.md
 runtime/
 spider_xhs/
@@ -288,8 +292,8 @@ XHS 博主分析助手测试版来了 🚀
 
 现在最应该做：
 
-1. 先运行 `scripts/build_windows_exe.ps1` 生成一份干净 Windows 发布目录。
-2. 自己把 `release/xhs-blogger-analyzer-windows` 复制或压缩到一个新文件夹，完整走一遍 `USER_GUIDE.md`。
+1. 先运行 `scripts/package_windows_release.ps1` 生成一份干净 Windows zip。
+2. 自己把 `release/XHS博主分析助手-Windows测试版.zip` 解压到一个新文件夹，完整走一遍 `使用说明.html`。
 3. 找 3-5 个完全不懂技术的人，按 `USER_GUIDE.md` 安装。
 4. 让他们只截图，不解释，观察卡在哪里。
 5. 把卡点改成更傻瓜的脚本或图文。

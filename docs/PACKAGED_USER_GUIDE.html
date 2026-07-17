@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XHS 博主分析助手使用说明</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #667085;
+      --line: #ead5dc;
+      --brand: #ff2f62;
+      --brand-dark: #d91f4d;
+      --soft: #fff3f6;
+      --paper: #ffffff;
+      --ok: #159947;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--ink);
+      background: #fff8fa;
+      line-height: 1.7;
+    }
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-top: 6px solid var(--brand);
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 18px 48px rgba(255, 47, 98, 0.08);
+    }
+    h1, h2, h3 { line-height: 1.25; margin: 0; }
+    h1 { font-size: 34px; letter-spacing: 0; }
+    h2 { font-size: 24px; margin-top: 36px; padding-top: 4px; }
+    h3 { font-size: 18px; margin-top: 24px; }
+    p { margin: 10px 0 0; }
+    .lead {
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 17px;
+      margin-top: 12px;
+    }
+    .notice {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid #ffd1dc;
+      border-radius: 8px;
+      background: var(--soft);
+      color: #8a1235;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fff;
+    }
+    .step strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+    code, .path {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f6f7f9;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    ol, ul { padding-left: 22px; margin: 10px 0 0; }
+    li { margin: 6px 0; }
+    img {
+      display: block;
+      max-width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-top: 12px;
+      background: #fff;
+    }
+    .section {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      margin-top: 18px;
+    }
+    .ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+    .warn {
+      color: var(--brand-dark);
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .footer {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 28px;
+    }
+    @media (max-width: 760px) {
+      .steps, .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 28px; }
+      .hero, .section { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>XHS 博主分析助手使用说明</h1>
+      <p class="lead">这份说明写给完全不懂技术的用户。你只需要会打开浏览器、解压文件、双击程序，就可以分析一个小红书博主主页最近约 100 篇公开内容。</p>
+      <div class="notice">
+        <strong>先记住一句话：</strong>不能只安装浏览器插件。请先双击 <code>XHS分析助手.exe</code> 启动本地工具，再安装插件并分析博主。
+      </div>
+      <div class="steps">
+        <div class="step"><strong>1. 解压</strong>不要直接在压缩包里双击文件，先完整解压。</div>
+        <div class="step"><strong>2. 启动</strong>双击 <code>XHS分析助手.exe</code>，等待本地页面打开。</div>
+        <div class="step"><strong>3. 分析</strong>登录小红书，打开博主主页，点插件里的“分析当前博主”。</div>
+      </div>
+    </section>
+
+    <h2>第一次使用</h2>
+    <section class="section">
+      <ol>
+        <li>把下载到的 zip 压缩包解压到桌面或其他容易找到的位置。</li>
+        <li>打开解压后的文件夹，双击 <code>XHS分析助手.exe</code>。</li>
+        <li>如果出现黑色窗口，请不要关闭。工具运行期间它需要保持打开。</li>
+        <li>浏览器正常会自动打开 <code>http://127.0.0.1:8000</code>。</li>
+      </ol>
+      <p class="warn">如果 Windows 提示“未知发布者”，这是测试版没有代码签名导致的。只从作者提供的正式下载链接获取压缩包。</p>
+    </section>
+
+    <h2>安装浏览器插件</h2>
+    <section class="section">
+      <div class="grid">
+        <div>
+          <h3>Chrome</h3>
+          <ol>
+            <li>地址栏输入 <code>chrome://extensions/</code>。</li>
+            <li>打开右上角“开发者模式”。</li>
+            <li>点击“加载已解压的扩展程序”。</li>
+            <li>选择解压文件夹里的 <code>browser-extension</code>。</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Edge</h3>
+          <ol>
+            <li>地址栏输入 <code>edge://extensions/</code>。</li>
+            <li>打开“开发人员模式”。</li>
+            <li>点击“加载解压缩的扩展”。</li>
+            <li>选择解压文件夹里的 <code>browser-extension</code>。</li>
+          </ol>
+        </div>
+      </div>
+      <img src="docs/images/load-unpacked.png" alt="加载已解压的扩展程序" />
+      <p>看到类似下面的卡片，说明插件已经安装成功，并且是启用状态。</p>
+      <img src="docs/images/extension-installed.png" alt="插件安装成功" />
+      <p>接着可以把插件固定到浏览器右上角，之后点击图标就能使用。</p>
+      <img src="docs/images/pin-extension.png" alt="固定插件到工具栏" />
+    </section>
+
+    <h2>分析一个博主</h2>
+    <section class="section">
+      <ol>
+        <li>确认 <code>XHS分析助手.exe</code> 正在运行，本地网页能打开。</li>
+        <li>在 Chrome 或 Edge 里登录小红书。</li>
+        <li>打开你想分析的博主主页，地址通常像 <code>https://www.xiaohongshu.com/user/profile/用户ID</code>。</li>
+        <li>点击浏览器右上角插件图标。</li>
+        <li>点击“分析当前博主”，等待报告页面自动打开。</li>
+      </ol>
+      <img src="docs/images/extension-popup.png" alt="插件弹窗" />
+      <p>分析完成后，你会看到类似这样的报告。</p>
+      <img src="docs/images/report-overview.png" alt="分析报告主页" />
+    </section>
+
+    <h2>常见问题</h2>
+    <section class="section">
+      <h3>插件提示“本地工具没启动”</h3>
+      <p>回到工具文件夹，双击 <code>XHS分析助手.exe</code>。等网页打开后，再点插件分析。</p>
+
+      <h3>插件提示“先打开博主主页”</h3>
+      <p>说明当前页面不是小红书博主主页。请先打开某个博主主页，再点插件。</p>
+
+      <h3>插件提示“还没有检测到登录”</h3>
+      <p>请先在当前浏览器登录小红书，然后刷新博主主页，再点插件分析。</p>
+
+      <h3>分析一直没有结束</h3>
+      <p>先不要连续点很多次。等 1-3 分钟，看本地网页里的任务进度。如果失败，请把页面截图和 <code>logs</code> 文件夹发给作者排查。</p>
+    </section>
+
+    <h2>隐私和使用边界</h2>
+    <section class="section">
+      <ul>
+        <li class="ok">插件只把必要信息发送到你自己电脑上的 <code>127.0.0.1</code>。</li>
+        <li>不需要手动复制 Cookie，不需要提供小红书密码。</li>
+        <li>不要频繁批量分析大量账号。</li>
+        <li>报告是基于公开主页样本的观察，不是平台官方数据或保证结论。</li>
+      </ul>
+    </section>
+
+    <h2>关闭和卸载</h2>
+    <section class="section">
+      <ol>
+        <li>关闭本地工具：双击 <code>关闭本地工具.bat</code>。</li>
+        <li>删除插件：打开 <code>chrome://extensions/</code> 或 <code>edge://extensions/</code>，找到插件后点击“移除”。</li>
+        <li>删除本地文件：不想用了，可以删除整个工具文件夹。</li>
+      </ol>
+    </section>
+
+    <p class="footer">测试版建议一次只分析一个账号。遇到问题时，请提供截图、电脑系统版本、浏览器类型，以及工具文件夹里的 logs 文件夹。</p>
+  </main>
+</body>
+</html>
