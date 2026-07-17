@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XHS 博主分析助手安装说明</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff7fa;
+      color: #101828;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.72;
+    }
+    .page {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 32px 22px 56px;
+    }
+    .hero, .box {
+      background: #fff;
+      border: 1px solid #f1d4dc;
+      border-radius: 12px;
+      padding: 24px;
+      margin: 18px 0;
+      box-shadow: 0 12px 34px rgba(255, 47, 98, 0.08);
+    }
+    .hero {
+      border-top: 8px solid #ff2f62;
+    }
+    h1, h2, h3 {
+      line-height: 1.28;
+      margin: 0;
+    }
+    h1 { font-size: 32px; }
+    h2 {
+      font-size: 24px;
+      margin-top: 30px;
+    }
+    h3 {
+      font-size: 19px;
+      margin-top: 18px;
+    }
+    p { margin: 10px 0 0; }
+    ol, ul { margin: 10px 0 0; padding-left: 24px; }
+    li { margin: 7px 0; }
+    .lead { color: #475467; font-size: 17px; }
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #ffe3ea;
+      color: #c9184a;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .warning {
+      background: #fff2cc;
+      border: 1px solid #f7d46a;
+      color: #6b4f00;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 14px;
+    }
+    .download {
+      background: #f6fff8;
+      border: 1px solid #b7ebc6;
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 14px;
+    }
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f6f7f9;
+      border: 1px solid #e5e7eb;
+      border-radius: 7px;
+    }
+    code { padding: 2px 6px; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+      padding: 12px;
+      margin: 10px 0 0;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .step {
+      border: 1px solid #f1d4dc;
+      border-radius: 10px;
+      padding: 14px;
+      background: #fff;
+    }
+    .step strong {
+      display: block;
+      color: #ff2f62;
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+    img {
+      display: block;
+      max-width: 100%;
+      border: 1px solid #ead5dc;
+      border-radius: 10px;
+      margin: 14px 0 4px;
+      background: #fff;
+    }
+    .caption {
+      color: #667085;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .ok { color: #168a3a; font-weight: 700; }
+    .bad { color: #c9184a; font-weight: 700; }
+    @media print {
+      body { background: #fff; }
+      .box, .hero { box-shadow: none; break-inside: avoid; }
+      h2 { break-after: avoid; }
+      img { max-height: 520px; object-fit: contain; }
+    }
+    @media (max-width: 760px) {
+      .steps { grid-template-columns: 1fr; }
+      h1 { font-size: 28px; }
+      .page { padding: 22px 14px 42px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="tag">Windows 测试版</div>
+      <h1>XHS 博主分析助手安装说明</h1>
+      <p class="lead">这份说明写给完全不懂技术的用户。照着一步一步做，就可以安装并使用。</p>
+      <div class="warning">
+        <strong>请在电脑上操作。</strong>手机可以看这份 PDF，但工具需要安装在 Windows 电脑上。
+      </div>
+      <div class="steps">
+        <div class="step"><strong>第 1 步</strong>从百度网盘下载 zip。</div>
+        <div class="step"><strong>第 2 步</strong>解压，然后双击 <code>XHS分析助手.exe</code>。</div>
+        <div class="step"><strong>第 3 步</strong>安装浏览器插件，打开博主主页分析。</div>
+      </div>
+    </section>
+
+    <h2>先确认你需要什么</h2>
+    <section class="box">
+      <ul>
+        <li>一台 Windows 电脑。</li>
+        <li>Chrome 浏览器或 Edge 浏览器。</li>
+        <li>已经登录的小红书账号。</li>
+      </ul>
+      <p>新版测试包一般不需要你自己安装 Python 或 Node.js。</p>
+      <p class="bad">不要在手机上安装。不要只安装浏览器插件。必须先启动本地工具。</p>
+    </section>
+
+    <h2>下载工具包</h2>
+    <section class="box">
+      <p>请下载这个文件：</p>
+      <pre>XHS博主分析助手-Windows测试版.zip</pre>
+
+      <div class="download">
+        <h3>百度网盘下载</h3>
+        <p>链接：</p>
+        <pre>https://pan.baidu.com/s/1d2U3q0QMVLYyEkCnOJRJHQ?pwd=qxc4</pre>
+        <p>提取码：</p>
+        <pre>qxc4</pre>
+        <p>也可以复制这段内容后打开百度网盘手机 App：</p>
+        <pre>链接: https://pan.baidu.com/s/1d2U3q0QMVLYyEkCnOJRJHQ?pwd=qxc4
+提取码: qxc4</pre>
+      </div>
+
+      <h3>如果你是在手机上看到这份 PDF</h3>
+      <ol>
+        <li>先把文件保存到自己的百度网盘。</li>
+        <li>打开电脑。</li>
+        <li>在电脑上登录百度网盘。</li>
+        <li>把 zip 下载到电脑桌面。</li>
+      </ol>
+    </section>
+
+    <h2>解压 zip</h2>
+    <section class="box">
+      <ol>
+        <li>在电脑上找到 <code>XHS博主分析助手-Windows测试版.zip</code>。</li>
+        <li>鼠标右键点击它。</li>
+        <li>选择“全部解压缩”或“解压到当前文件夹”。</li>
+        <li>等它生成一个新的文件夹。</li>
+        <li>打开这个新的文件夹。</li>
+      </ol>
+      <p>打开后，你应该能看到这些东西：</p>
+      <pre>XHS分析助手.exe
+关闭本地工具.bat
+使用说明.html
+README-先看我.txt
+browser-extension/
+docs/</pre>
+      <p class="bad">不要直接在压缩包里面双击文件。一定要先解压。</p>
+    </section>
+
+    <h2>启动本地工具</h2>
+    <section class="box">
+      <ol>
+        <li>双击 <code>XHS分析助手.exe</code>。</li>
+        <li>第一次启动可能会慢一点，请等一会儿。</li>
+        <li>如果弹出黑色窗口，不要关闭。</li>
+        <li>正常情况下，浏览器会自动打开 <code>http://127.0.0.1:8000</code>。</li>
+      </ol>
+      <p class="ok">看到本地网页打开，就说明这一步成功了。</p>
+    </section>
+
+    <h2>安装浏览器插件</h2>
+    <section class="box">
+      <h3>Chrome 用户</h3>
+      <ol>
+        <li>打开 Chrome。</li>
+        <li>地址栏输入 <code>chrome://extensions/</code>。</li>
+        <li>打开右上角“开发者模式”。</li>
+        <li>点击“加载已解压的扩展程序”。</li>
+        <li>选择刚才解压出来的 <code>browser-extension</code> 文件夹。</li>
+      </ol>
+
+      <h3>Edge 用户</h3>
+      <ol>
+        <li>打开 Edge。</li>
+        <li>地址栏输入 <code>edge://extensions/</code>。</li>
+        <li>打开“开发人员模式”。</li>
+        <li>点击“加载解压缩的扩展”。</li>
+        <li>选择刚才解压出来的 <code>browser-extension</code> 文件夹。</li>
+      </ol>
+
+      <img src="images/load-unpacked.png" alt="加载已解压扩展">
+      <p class="caption">看到“加载已解压的扩展程序”或“加载解压缩的扩展”，点它。</p>
+
+      <img src="images/extension-installed.png" alt="插件安装成功">
+      <p class="caption">看到插件卡片，说明安装成功。</p>
+
+      <img src="images/pin-extension.png" alt="固定插件">
+      <p class="caption">建议把插件固定到右上角，之后更好找。</p>
+    </section>
+
+    <h2>开始分析一个博主</h2>
+    <section class="box">
+      <ol>
+        <li>确认 <code>XHS分析助手.exe</code> 正在运行。</li>
+        <li>在 Chrome 或 Edge 里登录小红书。</li>
+        <li>打开你想分析的博主主页。</li>
+        <li>点击浏览器右上角的插件图标。</li>
+        <li>点击“分析当前博主”。</li>
+        <li>等待报告自动打开。</li>
+      </ol>
+      <p>博主主页通常长这样：</p>
+      <pre>https://www.xiaohongshu.com/user/profile/用户ID</pre>
+      <img src="images/extension-popup.png" alt="插件弹窗">
+      <p class="caption">打开博主主页后，点击插件里的“分析当前博主”。</p>
+    </section>
+
+    <h2>报告长什么样</h2>
+    <section class="box">
+      <img src="images/report-overview.png" alt="分析报告主页">
+      <p class="caption">报告首页会先告诉你：这个账号最值得学习什么。</p>
+      <img src="images/insights-topic-map.png" alt="关键洞察和主题地图">
+      <p class="caption">继续往下看，可以看到主题地图和关键洞察。</p>
+      <img src="images/deep-analysis.png" alt="深度分析">
+      <p class="caption">如果想细看，还可以打开深度分析模块。</p>
+    </section>
+
+    <h2>卡住了怎么办</h2>
+    <section class="box">
+      <h3>插件提示“本地工具没启动”</h3>
+      <p>回到工具文件夹，双击 <code>XHS分析助手.exe</code>，等网页打开后再点插件。</p>
+
+      <h3>插件提示“先打开博主主页”</h3>
+      <p>请先打开某个小红书博主主页，再点插件。</p>
+
+      <h3>插件提示“还没有检测到登录”</h3>
+      <p>请先在当前浏览器登录小红书，然后刷新博主主页。</p>
+
+      <h3>Windows 提示未知发布者</h3>
+      <p>当前是测试版，没有代码签名，所以 Windows 可能提示未知发布者。请只从作者提供的正式下载包获取文件。</p>
+    </section>
+
+    <h2>隐私和使用边界</h2>
+    <section class="box">
+      <ul>
+        <li>插件只把必要信息发送到你自己电脑上的 <code>127.0.0.1</code>。</li>
+        <li>不需要你手动复制 Cookie。</li>
+        <li>不需要你提供小红书密码。</li>
+        <li>不建议频繁批量分析大量账号。</li>
+        <li>报告只是公开主页样本观察，不代表平台官方数据。</li>
+      </ul>
+    </section>
+
+    <h2>反馈时请提供</h2>
+    <section class="box">
+      <ul>
+        <li>电脑系统版本，例如 Windows 10 / Windows 11。</li>
+        <li>使用的浏览器，例如 Chrome / Edge。</li>
+        <li>卡在哪一步。</li>
+        <li>页面截图。</li>
+        <li>工具文件夹里的 <code>logs</code> 文件夹。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
