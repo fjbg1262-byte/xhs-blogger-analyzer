@@ -181,6 +181,13 @@ Assert-Exists $guideHtmlName
 Assert-Exists $firstReadmeName
 Assert-Exists $releaseNotesName
 
+Write-Host ""
+Write-Host "== Verify staged release runtime =="
+& (Join-Path $packageDir $appExeName) --xhs-self-check
+if ($LASTEXITCODE -ne 0) {
+  throw "Staged release runtime self-check failed"
+}
+
 Assert-NotExists "data\app.db"
 Assert-NotExists "data\tasks"
 Assert-NotExists "cookies.json"

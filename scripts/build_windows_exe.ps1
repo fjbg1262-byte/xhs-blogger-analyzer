@@ -159,11 +159,19 @@ Invoke-Step "Prepare Spider_XHS node_modules" {
 }
 
 $python = Get-PythonExe
-Invoke-Step "Install PyInstaller on build machine" {
+Invoke-Step "Install and verify Python build dependencies" {
+  & $python -m pip install --disable-pip-version-check -r (Join-Path $root "requirements.txt")
+  if ($LASTEXITCODE -ne 0) { throw "Failed to install Python requirements" }
+
   & $python -m pip show pyinstaller | Out-Null
   if ($LASTEXITCODE -ne 0) {
     & $python -m pip install --disable-pip-version-check pyinstaller
     if ($LASTEXITCODE -ne 0) { throw "Failed to install pyinstaller" }
+  }
+
+  & $python -c "import execjs; runtime = execjs.get(); assert runtime.eval('1 + 1') == 2; print('Build dependency check: execjs=' + runtime.name)"
+  if ($LASTEXITCODE -ne 0) {
+    throw "PyExecJS or its Node.js runtime is unavailable on the build machine"
   }
 }
 
@@ -185,6 +193,8 @@ if (-not $SkipPyInstaller) {
       --hidden-import httptools `
       --hidden-import websockets.legacy.server `
       --hidden-import sqlalchemy.sql.default_comparator `
+      --hidden-import execjs `
+      --hidden-import execjs._runtimes `
       (Join-Path $root "desktop_entry.py")
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
   }
@@ -241,6 +251,14 @@ Invoke-Step "Create writable folders and helper scripts" {
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($id in $p){ Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }; Write-Host 'XHS local tool stopped.'; pause"
 '@
   Set-Content -Path (Join-Path $finalDir $stopBatName) -Value $stopContent -Encoding ASCII
+}
+
+Invoke-Step "Verify packaged Python and JavaScript runtime" {
+  $finalExe = Join-Path $finalDir "$appName.exe"
+  & $finalExe --xhs-self-check
+  if ($LASTEXITCODE -ne 0) {
+    throw "Packaged runtime self-check failed"
+  }
 }
 
 Write-Host ""

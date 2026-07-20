@@ -57,8 +57,28 @@ def _run_script_mode(script_name: str, argv: list[str]) -> int:
         os.chdir(old_cwd)
 
 
+def _run_self_check() -> int:
+    """Verify dependencies that are easy to miss in the frozen release."""
+    try:
+        import execjs
+
+        runtime = execjs.get()
+        result = runtime.eval("1 + 1")
+        if result != 2:
+            raise RuntimeError(f"unexpected JavaScript result: {result!r}")
+    except Exception as exc:
+        print(f"SELF_CHECK_FAILED: execjs: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"SELF_CHECK_OK: execjs={runtime.name}")
+    return 0
+
+
 def main() -> int:
     configure_runtime_environment()
+
+    if len(sys.argv) == 2 and sys.argv[1] == "--xhs-self-check":
+        return _run_self_check()
 
     if len(sys.argv) >= 3 and sys.argv[1] == "--xhs-run":
         return _run_script_mode(sys.argv[2], sys.argv[3:])
