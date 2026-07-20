@@ -259,11 +259,14 @@
       </div>
     </section>
 
+    <ReportFeedback :task-id="taskId" />
+
     <section class="export-row">
       <button class="btn btn-secondary" @click="downloadBriefJson"><span aria-hidden="true">{ }</span>导出 JSON</button>
       <button class="btn btn-secondary" @click="downloadShareHtml"><span aria-hidden="true">↗</span>导出脱敏分享版</button>
       <button class="btn btn-primary" @click="downloadMarkdownZip"><span aria-hidden="true">↓</span>导出 Markdown</button>
     </section>
+
   </div>
 </template>
 
@@ -272,6 +275,7 @@ import { computed, nextTick, ref } from 'vue'
 import { marked } from 'marked'
 import { defaultReportKey, reportTypes } from '../constants/reports'
 import { reportAPI, taskAPI } from '../api/client'
+import ReportFeedback from './ReportFeedback.vue'
 
 const props = defineProps<{
   taskId: number

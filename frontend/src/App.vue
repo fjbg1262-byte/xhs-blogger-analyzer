@@ -26,12 +26,14 @@
     <main class="app-main">
       <router-view />
     </main>
+    <TelemetryConsent />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { clearAuth, currentUsername, isAuthenticated } from './auth'
+import TelemetryConsent from './components/TelemetryConsent.vue'
 
 const router = useRouter()
 

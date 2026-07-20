@@ -64,6 +64,34 @@
     <div v-else-if="task?.status === 'failed'" class="card state-panel error-panel">
       <h3>分析失败</h3>
       <p class="pre-wrap">{{ task.error_message || '任务失败，请检查 Cookie、主页链接和网络状态。' }}</p>
+      <div class="failure-actions">
+        <button type="button" class="btn btn-secondary" @click="copyDiagnostic">
+          {{ diagnosticCopied ? '诊断信息已复制' : '复制诊断信息' }}
+        </button>
+        <button
+          v-if="failureFeedbackAvailable && !failureFeedbackSent"
+          type="button"
+          class="btn btn-primary"
+          @click="failureFeedbackOpen = !failureFeedbackOpen"
+        >
+          反馈这个问题
+        </button>
+      </div>
+      <div v-if="failureFeedbackOpen && !failureFeedbackSent" class="failure-feedback">
+        <label for="failure-comment">发生问题时你看到了什么？（可不填）</label>
+        <textarea
+          id="failure-comment"
+          v-model="failureComment"
+          maxlength="500"
+          rows="3"
+          placeholder="不用描述 Cookie 或账号，只说操作到了哪一步即可。"
+        ></textarea>
+        <button type="button" class="btn btn-primary" :disabled="failureFeedbackSending" @click="sendFailureFeedback">
+          {{ failureFeedbackSending ? '发送中...' : '发送问题反馈' }}
+        </button>
+      </div>
+      <p v-if="failureFeedbackSent" class="feedback-sent">问题已记录，谢谢你帮助改进测试版。</p>
+      <p v-if="diagnosticCode" class="diagnostic-code">诊断编号：{{ diagnosticCode }}</p>
     </div>
 
     <div v-else>
@@ -97,9 +125,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { taskAPI, reportAPI } from '../api/client'
+import { taskAPI, reportAPI, telemetryAPI } from '../api/client'
 import { marked } from 'marked'
 import { defaultReportKey, reportTypes } from '../constants/reports'
 import ProductReport from '../components/ProductReport.vue'
@@ -114,6 +142,13 @@ const detailFetch = ref<any>(null)
 const selectedReport = ref(defaultReportKey)
 const loading = ref(true)
 const error = ref('')
+const diagnosticCopied = ref(false)
+const diagnosticCode = ref('')
+const failureFeedbackAvailable = ref(false)
+const failureFeedbackOpen = ref(false)
+const failureFeedbackSending = ref(false)
+const failureFeedbackSent = ref(false)
+const failureComment = ref('')
 const ringCircumference = 339.292
 
 const statusBadge = (s: string) => {
@@ -176,6 +211,52 @@ const progressSteps = computed(() => {
 
 function selectReport(key: string) { selectedReport.value = key }
 
+async function trackReportOpened() {
+  const key = `xhs_report_opened_${taskId.value}`
+  if (sessionStorage.getItem(key)) return
+  try {
+    await telemetryAPI.event('report_opened', { task_type: task.value?.task_type || 'full_analysis' })
+    sessionStorage.setItem(key, '1')
+  } catch {}
+}
+
+async function loadFailureFeedbackAvailability() {
+  try {
+    const res = await telemetryAPI.preferences()
+    failureFeedbackAvailable.value = Boolean(res.data.available && res.data.consent === 'granted')
+  } catch {
+    failureFeedbackAvailable.value = false
+  }
+}
+
+async function copyDiagnostic() {
+  try {
+    const res = await telemetryAPI.diagnosticCopied(taskId.value)
+    diagnosticCode.value = res.data.diagnostic_code || ''
+    await navigator.clipboard.writeText(res.data.copy_text || '')
+    diagnosticCopied.value = true
+  } catch {
+    diagnosticCopied.value = false
+  }
+}
+
+async function sendFailureFeedback() {
+  failureFeedbackSending.value = true
+  try {
+    const res = await telemetryAPI.feedback({
+      task_id: taskId.value,
+      feedback_kind: 'failure',
+      rating: 'problem',
+      reason: 'analysis_failed',
+      comment: failureComment.value,
+    })
+    failureFeedbackSent.value = Boolean(res.data.accepted)
+    if (failureFeedbackSent.value) failureFeedbackOpen.value = false
+  } finally {
+    failureFeedbackSending.value = false
+  }
+}
+
 async function refresh() {
   try {
     const res = await taskAPI.get(taskId.value)
@@ -214,6 +295,9 @@ async function load() {
       } catch {
         detailFetch.value = null
       }
+      trackReportOpened()
+    } else if (tRes.data.status === 'failed') {
+      loadFailureFeedbackAvailability()
     } else if (tRes.data.status === 'running' || tRes.data.status === 'pending') {
       setTimeout(load, 3000)
     }
@@ -224,7 +308,14 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  window.addEventListener('telemetry-consent-changed', loadFailureFeedbackAvailability)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('telemetry-consent-changed', loadFailureFeedbackAvailability)
+})
 </script>
 
 <style scoped>
@@ -461,6 +552,31 @@ onMounted(load)
 
 .error-panel p { color: #9d1937; }
 .pre-wrap { white-space: pre-wrap; }
+.failure-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.failure-feedback {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #f3a1b3;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+}
+.failure-feedback .btn { justify-self: end; }
+.feedback-sent { color: #087342 !important; font-weight: 800; }
+.diagnostic-code {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #fff;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
 
 @media (max-width: 560px) {
   .report-titlebar { align-items: flex-start; }
@@ -469,6 +585,9 @@ onMounted(load)
   .progress-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .progress-copy { text-align: center; }
   .progress-steps { grid-template-columns: 1fr; }
+  .failure-actions { width: 100%; }
+  .failure-actions .btn { flex: 1; justify-content: center; }
+  .failure-feedback .btn { width: 100%; justify-content: center; }
 }
 
 @media (min-width: 561px) and (max-width: 980px) {

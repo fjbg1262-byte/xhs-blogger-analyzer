@@ -12,6 +12,7 @@ from backend.routers.auth import _create_jwt
 from backend.routers.tasks import _ensure_task_slot, _normalize_profile_url, _task_to_out
 from backend.tasks.worker import submit_task
 from backend.utils.cookie import cookies_array_to_dict
+from backend.services.telemetry import track
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
@@ -64,6 +65,7 @@ def _save_extension_cookie(db: Session, user_id: int, cookie_text: str) -> Cooki
 @router.post("/analyze-current")
 def analyze_current(body: ExtensionAnalyzeRequest, db: Session = Depends(get_db)):
     """Create a local analysis task from the browser extension."""
+    track("extension_connected")
     user = _get_or_create_local_user(db)
     profile_url = _normalize_profile_url(body.profile_url)
     _ensure_task_slot(db, user.id)

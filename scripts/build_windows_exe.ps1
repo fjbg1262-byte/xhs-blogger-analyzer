@@ -1,5 +1,8 @@
 param(
   [string]$Version = "windows",
+  [string]$AppVersion = "0.1.0-beta.3",
+  [string]$TelemetryEndpoint = $env:TELEMETRY_ENDPOINT,
+  [string]$TelemetryIngestKey = $env:TELEMETRY_INGEST_KEY,
   [switch]$SkipPyInstaller
 )
 
@@ -229,6 +232,14 @@ Invoke-Step "Copy app resources" {
   Copy-Tree $spiderDir (Join-Path $finalDir "spider_xhs") `
     @("__pycache__", ".git", "logs", "data", "reports") `
     @(".env", "cookies.json", "*.log", "*.pyc", "*.tar.gz")
+
+  $telemetryConfig = @{
+    app_version = $AppVersion
+    endpoint = [string]$TelemetryEndpoint
+    ingest_key = [string]$TelemetryIngestKey
+  } | ConvertTo-Json
+  Set-Content -LiteralPath (Join-Path $finalDir "telemetry_config.json") `
+    -Value $telemetryConfig -Encoding UTF8
 }
 
 Invoke-Step "Copy portable Node runtime" {

@@ -19,12 +19,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import ssl
 try:
     _orig_create_default = ssl.create_default_context
-    def _tls12_context():
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    def _tls12_context(*args, **kwargs):
+        ctx = _orig_create_default(*args, **kwargs)
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.maximum_version = ssl.TLSVersion.TLSv1_2
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         return ctx
     ssl.create_default_context = _tls12_context
 except AttributeError:

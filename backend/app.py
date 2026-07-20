@@ -14,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from backend.database import init_db
 from backend.config import settings
 from backend.tasks.worker import init_worker
-from backend.routers import ai, auth, cookies, extension, llm_config, reports, tasks
+from backend.routers import ai, auth, cookies, extension, llm_config, reports, tasks, telemetry
+from backend.services.telemetry import track
 
 app = FastAPI(
     title="XHS Blogger Analyzer",
@@ -49,6 +50,7 @@ def startup():
         print("[App] Clone it with: git clone https://github.com/cv-cat/Spider_XHS.git spider_xhs")
 
     init_worker()
+    track("app_started")
     print("[App] Startup complete")
 
 
@@ -60,12 +62,14 @@ app.include_router(reports.router)
 app.include_router(ai.router)
 app.include_router(llm_config.router)
 app.include_router(extension.router)
+app.include_router(telemetry.router)
 
 
 @app.get("/api/health")
 def health():
     return {
         "status": "ok",
+        "app_version": settings.app_version,
         "spider_xhs_available": os.path.exists(settings.spider_xhs_dir),
         "limits": {
             "max_notes_per_task": settings.max_notes_per_task,

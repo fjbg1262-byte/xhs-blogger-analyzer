@@ -83,6 +83,25 @@ export const settingsAPI = {
   setLlm: (body: Record<string, string>) => api.post('/settings/llm', body),
 }
 
+// Anonymous product improvement
+export const telemetryAPI = {
+  preferences: () => api.get('/telemetry/preferences'),
+  setConsent: (consent: 'granted' | 'denied') =>
+    api.put('/telemetry/preferences', { consent }),
+  event: (eventName: string, properties: Record<string, unknown> = {}) =>
+    api.post('/telemetry/events', { event_name: eventName, properties }),
+  diagnostic: (taskId: number) => api.get(`/telemetry/diagnostic/${taskId}`),
+  diagnosticCopied: (taskId: number) => api.post(`/telemetry/diagnostic/${taskId}/copied`),
+  feedback: (body: {
+    task_id: number
+    feedback_kind: 'report' | 'failure'
+    rating: 'helpful' | 'not_helpful' | 'problem'
+    reason?: string
+    comment?: string
+    reuse_intent?: string
+  }) => api.post('/telemetry/feedback', body),
+}
+
 // AI
 export const aiAPI = {
   deconstruct: (taskId: number) =>

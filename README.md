@@ -192,6 +192,9 @@ browser-extension
 - 不需要你手动复制 Cookie
 - 不需要你提供小红书密码
 - 不会默认上传数据到作者服务器
+- 只有你明确点击“允许匿名改进”后，才会发送启动、分析状态、报告打开和主动反馈
+- 匿名改进不会发送 Cookie、账号链接、昵称、笔记内容或报告正文
+- 可以随时在“设置”里关闭
 
 为了降低异常访问风险，建议：
 
@@ -207,6 +210,20 @@ browser-extension
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Version test
 ```
+
+配置匿名反馈接收端后打包：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 `
+  -Version 0.1.0-beta.3 `
+  -AppVersion 0.1.0-beta.3 `
+  -TelemetryEndpoint "https://your-telemetry.example.com" `
+  -TelemetryIngestKey "your-ingest-key"
+```
+
+接收端部署说明：
+
+[telemetry_server/README.md](telemetry_server/README.md)
 
 生成文件：
 

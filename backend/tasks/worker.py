@@ -13,6 +13,7 @@ from backend.services.insight_brief import build_insight_brief
 from backend.services.report_quality import run_report_quality_check
 from backend.services.reporter import generate_reports
 from backend.services.ai_agent import deconstruct_notes, diagnose_account
+from backend.services.telemetry import classify_error, track
 
 # In-memory task state
 _task_state: dict[int, dict] = {}
@@ -106,8 +107,27 @@ def _friendly_error(exc: Exception) -> str:
     return raw[:500]
 
 
-def _mark_failed(task_id: int, exc: Exception):
+def _duration_ms(started_monotonic: float) -> int:
+    return max(0, int((time.monotonic() - started_monotonic) * 1000))
+
+
+def _mark_failed(
+    task_id: int,
+    exc: Exception,
+    *,
+    stage: str = "unknown",
+    task_type: str = "full_analysis",
+    started_monotonic: float = None,
+):
     _update_task(task_id, status="failed", error_message=_friendly_error(exc))
+    properties = {
+        "task_type": task_type if task_type in ("full_analysis", "detail_fetch", "competitor_discovery") else "full_analysis",
+        "error_code": classify_error(exc),
+        "stage": stage,
+    }
+    if started_monotonic is not None:
+        properties["duration_ms"] = _duration_ms(started_monotonic)
+    track("analysis_failed", properties)
 
 
 def _rerun_outputs(task_id: int, task_dir: Path, account_id: int = None, session=None) -> dict:
@@ -164,6 +184,7 @@ def _rerun_outputs(task_id: int, task_dir: Path, account_id: int = None, session
 
 def _run_full_analysis(task_id: int, enable_ai: bool = False):
     """Execute the full analysis pipeline: collect -> analyze -> report."""
+    started_monotonic = time.monotonic()
     session = _get_db_session()
     try:
         from backend.database import Task, Cookie, Account
@@ -175,8 +196,15 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
         cookie = session.get(Cookie, task.cookie_id)
         account = session.get(Account, task.account_id)
         if not cookie or not account:
-            _update_task(task_id, status="failed", error_message="Missing cookie or account")
+            _mark_failed(
+                task_id,
+                RuntimeError("Missing cookie or account"),
+                stage="prepare",
+                task_type="full_analysis",
+                started_monotonic=started_monotonic,
+            )
             return
+        track("analysis_started", {"task_type": "full_analysis"})
 
         # Phase 1: Collect data
         _update_task(
@@ -197,7 +225,13 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
         try:
             data = collector.collect_all_notes(profile_url, cookie.cookie_json)
         except RuntimeError as e:
-            _mark_failed(task_id, e)
+            _mark_failed(
+                task_id,
+                e,
+                stage="collect",
+                task_type="full_analysis",
+                started_monotonic=started_monotonic,
+            )
             return
         if _is_cancelled(task_id):
             return
@@ -225,7 +259,13 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
         try:
             results = _rerun_outputs(task_id, task_dir)
         except RuntimeError as e:
-            _mark_failed(task_id, e)
+            _mark_failed(
+                task_id,
+                e,
+                stage="analyze",
+                task_type="full_analysis",
+                started_monotonic=started_monotonic,
+            )
             return
         _update_task(
             task_id,
@@ -295,10 +335,20 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
             completed_at=datetime.utcnow(),
             run_log=_progress_log("分析完成", "报告已生成，可以查看结果。", FULL_ANALYSIS_STEPS),
         )
+        track(
+            "analysis_completed",
+            {"task_type": "full_analysis", "duration_ms": _duration_ms(started_monotonic)},
+        )
         print(f"[Worker] Task {task_id} completed")
 
     except Exception as e:
-        _mark_failed(task_id, e)
+        _mark_failed(
+            task_id,
+            e,
+            stage="unknown",
+            task_type="full_analysis",
+            started_monotonic=started_monotonic,
+        )
         print(f"[Worker] Task {task_id} failed: {e}")
     finally:
         session.close()
@@ -306,16 +356,24 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
 
 def _run_competitor_discovery(task_id: int, keyword: str, count: int):
     """Discover competitors and create child analysis tasks."""
+    started_monotonic = time.monotonic()
     session = _get_db_session()
     try:
         from backend.database import Task, Cookie
         task = session.get(Task, task_id)
         if not task:
             return
+        track("analysis_started", {"task_type": "competitor_discovery"})
 
         cookie = session.get(Cookie, task.cookie_id)
         if not cookie:
-            _update_task(task_id, status="failed", error_message=MSG_COOKIE_NOT_FOUND)
+            _mark_failed(
+                task_id,
+                RuntimeError(MSG_COOKIE_NOT_FOUND),
+                stage="prepare",
+                task_type="competitor_discovery",
+                started_monotonic=started_monotonic,
+            )
             return
 
         _update_task(task_id, status="running", progress=10, started_at=datetime.utcnow())
@@ -378,29 +436,56 @@ def _run_competitor_discovery(task_id: int, keyword: str, count: int):
             time.sleep(5)
 
         _update_task(task_id, status="completed", progress=100, completed_at=datetime.utcnow())
+        track(
+            "analysis_completed",
+            {
+                "task_type": "competitor_discovery",
+                "duration_ms": _duration_ms(started_monotonic),
+            },
+        )
 
     except Exception as e:
-        _mark_failed(task_id, e)
+        _mark_failed(
+            task_id,
+            e,
+            stage="collect",
+            task_type="competitor_discovery",
+            started_monotonic=started_monotonic,
+        )
     finally:
         session.close()
 
 
 def _run_detail_enrichment(task_id: int, max_count: int = 25):
     """Fetch selected note details, then regenerate analysis outputs for the same task."""
+    started_monotonic = time.monotonic()
     session = _get_db_session()
     try:
         from backend.database import Task, Cookie
         task = session.get(Task, task_id)
         if not task:
             return
+        track("analysis_started", {"task_type": "detail_fetch"})
         cookie = session.get(Cookie, task.cookie_id)
         if not cookie:
-            _update_task(task_id, status="failed", error_message=MSG_COOKIE_NOT_FOUND)
+            _mark_failed(
+                task_id,
+                RuntimeError(MSG_COOKIE_NOT_FOUND),
+                stage="prepare",
+                task_type="detail_fetch",
+                started_monotonic=started_monotonic,
+            )
             return
 
         task_dir = Path(settings.data_dir) / "tasks" / str(task_id)
         if not (task_dir / "all_notes.json").exists():
-            _update_task(task_id, status="failed", error_message="任务缺少原始笔记数据，无法补充详情。")
+            _mark_failed(
+                task_id,
+                RuntimeError("任务缺少原始笔记数据，无法补充详情。"),
+                stage="prepare",
+                task_type="detail_fetch",
+                started_monotonic=started_monotonic,
+            )
             return
 
         _update_task(
@@ -457,6 +542,10 @@ def _run_detail_enrichment(task_id: int, max_count: int = 25):
                 f"失败 {detail_fetch.get('failed_count', 0)} 条。"
             ),
         )
+        track(
+            "analysis_completed",
+            {"task_type": "detail_fetch", "duration_ms": _duration_ms(started_monotonic)},
+        )
         print(f"[Worker] Detail enrichment for task {task_id} completed")
     except Exception as e:
         task_dir = Path(settings.data_dir) / "tasks" / str(task_id)
@@ -484,6 +573,15 @@ def _run_detail_enrichment(task_id: int, max_count: int = 25):
             progress=100,
             completed_at=datetime.utcnow(),
             error_message=f"正文与标签补采失败，基础报告仍可使用：{_friendly_error(e)}",
+        )
+        track(
+            "analysis_failed",
+            {
+                "task_type": "detail_fetch",
+                "duration_ms": _duration_ms(started_monotonic),
+                "error_code": classify_error(e),
+                "stage": "collect",
+            },
         )
         print(f"[Worker] Detail enrichment for task {task_id} failed: {e}")
     finally:

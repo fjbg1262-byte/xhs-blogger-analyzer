@@ -1,6 +1,9 @@
 param(
   [string]$Version = "test",
   [string]$SourceVersion = "windows",
+  [string]$AppVersion = "0.1.0-beta.3",
+  [string]$TelemetryEndpoint = $env:TELEMETRY_ENDPOINT,
+  [string]$TelemetryIngestKey = $env:TELEMETRY_INGEST_KEY,
   [switch]$SkipBuild
 )
 
@@ -91,7 +94,11 @@ function Assert-NotExists($RelativePath) {
 New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
 if (-not $SkipBuild) {
-  & (Join-Path $PSScriptRoot "build_windows_exe.ps1") -Version $SourceVersion
+  & (Join-Path $PSScriptRoot "build_windows_exe.ps1") `
+    -Version $SourceVersion `
+    -AppVersion $AppVersion `
+    -TelemetryEndpoint $TelemetryEndpoint `
+    -TelemetryIngestKey $TelemetryIngestKey
   if ($LASTEXITCODE -ne 0) {
     throw "Windows exe build failed"
   }
@@ -176,6 +183,7 @@ Assert-Exists $stopBatName
 Assert-Exists "browser-extension\manifest.json"
 Assert-Exists "frontend\dist\index.html"
 Assert-Exists "runtime\node\node.exe"
+Assert-Exists "telemetry_config.json"
 Assert-Exists "docs\images\load-unpacked.png"
 Assert-Exists $guideHtmlName
 Assert-Exists $firstReadmeName

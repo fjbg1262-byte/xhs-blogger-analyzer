@@ -88,6 +88,30 @@
       </table>
     </div>
 
+    <div class="card telemetry-settings">
+      <div class="telemetry-setting-head">
+        <div>
+          <h3>匿名改进数据</h3>
+          <p>帮助判断用户卡在启动、分析还是报告环节。不会上传 Cookie、账号链接、笔记内容或报告正文。</p>
+        </div>
+        <label v-if="telemetryAvailable" class="toggle-control">
+          <input
+            type="checkbox"
+            :checked="telemetryConsent === 'granted'"
+            :disabled="telemetrySaving"
+            @change="toggleTelemetry"
+          />
+          <span aria-hidden="true"></span>
+          <b>{{ telemetryConsent === 'granted' ? '已开启' : '已关闭' }}</b>
+        </label>
+        <span v-else class="badge badge-info">当前版本未配置接收服务</span>
+      </div>
+      <ul>
+        <li v-for="item in telemetryPrivacySummary" :key="item">{{ item }}</li>
+      </ul>
+      <p class="telemetry-version">当前版本：{{ appVersion || '-' }}</p>
+    </div>
+
     <div class="card" style="margin-top: 16px;">
       <h3 style="margin-bottom: 16px;">系统信息</h3>
       <table>
@@ -106,7 +130,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { cookieAPI } from '../api/client'
+import { cookieAPI, telemetryAPI } from '../api/client'
 import api from '../api/client'
 
 const llmProvider = ref('openai')
@@ -119,6 +143,11 @@ const currentModel = ref('')
 const hasKey = ref(false)
 const llmSaved = ref(false)
 const saving = ref(false)
+const telemetryAvailable = ref(false)
+const telemetryConsent = ref('unknown')
+const telemetrySaving = ref(false)
+const telemetryPrivacySummary = ref<string[]>([])
+const appVersion = ref('')
 
 const defaultModel = computed(() => {
   const m: Record<string, string> = {
@@ -215,12 +244,137 @@ async function loadCookies() {
   } catch {}
 }
 
+async function loadTelemetryPreferences() {
+  try {
+    const res = await telemetryAPI.preferences()
+    telemetryAvailable.value = Boolean(res.data.available)
+    telemetryConsent.value = res.data.consent || 'unknown'
+    telemetryPrivacySummary.value = res.data.privacy_summary || []
+    appVersion.value = res.data.app_version || ''
+  } catch {
+    telemetryAvailable.value = false
+  }
+}
+
+async function toggleTelemetry(event: Event) {
+  const target = event.target as HTMLInputElement
+  telemetrySaving.value = true
+  try {
+    const consent = target.checked ? 'granted' : 'denied'
+    const res = await telemetryAPI.setConsent(consent)
+    telemetryConsent.value = res.data.consent
+    window.dispatchEvent(new CustomEvent('telemetry-consent-changed', { detail: consent }))
+  } catch {
+    target.checked = telemetryConsent.value === 'granted'
+  } finally {
+    telemetrySaving.value = false
+  }
+}
+
 onMounted(() => {
   loadLlmConfig()
   loadCookies()
+  loadTelemetryPreferences()
   api.get('/health').then(r => {
     spiderAvailable.value = r.data.spider_xhs_available
     limits.value = r.data.limits || limits.value
   }).catch(() => spiderAvailable.value = false)
 })
 </script>
+
+<style scoped>
+.telemetry-settings {
+  margin-top: 16px;
+}
+
+.telemetry-setting-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.telemetry-setting-head h3 {
+  margin-bottom: 5px;
+}
+
+.telemetry-setting-head p,
+.telemetry-settings ul,
+.telemetry-version {
+  color: #746b70;
+  font-size: 13px;
+}
+
+.telemetry-settings ul {
+  margin: 14px 0 0;
+  padding: 12px 12px 12px 32px;
+  border: 1px solid #f1e3e7;
+  border-radius: 8px;
+  background: #fff8f9;
+}
+
+.telemetry-version {
+  margin-top: 10px;
+}
+
+.toggle-control {
+  min-width: 126px;
+  display: inline-grid;
+  grid-template-columns: 38px auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.toggle-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.toggle-control span {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #d6c8cc;
+  transition: background 0.18s;
+}
+
+.toggle-control span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s;
+}
+
+.toggle-control input:checked + span {
+  background: #1ca96b;
+}
+
+.toggle-control input:checked + span::after {
+  transform: translateX(16px);
+}
+
+.toggle-control input:focus-visible + span {
+  outline: 3px solid rgba(255, 49, 88, 0.2);
+}
+
+.toggle-control b {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .telemetry-setting-head {
+    flex-direction: column;
+  }
+}
+</style>

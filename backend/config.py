@@ -1,5 +1,6 @@
 """Application configuration — pydantic V1 compatible."""
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -43,6 +44,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    # Optional anonymous product telemetry. Disabled until the user consents.
+    app_version: str = "0.1.0-beta.3"
+    telemetry_endpoint: str = ""
+    telemetry_ingest_key: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -63,6 +69,19 @@ class Settings(BaseSettings):
             self.python_exe = sys.executable
         if not self.spider_xhs_dir:
             self.spider_xhs_dir = str(find_resource("spider_xhs"))
+
+        telemetry_config = find_resource("telemetry_config.json")
+        if telemetry_config.exists():
+            try:
+                payload = json.loads(telemetry_config.read_text(encoding="utf-8-sig"))
+                if not self.telemetry_endpoint:
+                    self.telemetry_endpoint = str(payload.get("endpoint") or "").strip()
+                if not self.telemetry_ingest_key:
+                    self.telemetry_ingest_key = str(payload.get("ingest_key") or "").strip()
+                if payload.get("app_version"):
+                    self.app_version = str(payload["app_version"]).strip()
+            except (OSError, ValueError, TypeError):
+                pass
 
         # Auto-fill LLM API URL and model from provider preset
         preset = PROVIDER_PRESETS.get(self.llm_provider)
