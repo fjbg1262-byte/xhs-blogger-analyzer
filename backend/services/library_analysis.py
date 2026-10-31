@@ -163,22 +163,7 @@ def build_bundle(dataset: dict, goal: str) -> dict:
             "selection": "全部标题及标签；正文最多36篇，交替抽取高赞、低赞、中段、较新及主页顺序样本，每篇最多1600字。"}
 
 
-def validate_analysis(payload: dict, bundle: dict) -> dict:
-    result = Analysis.parse_obj(payload).dict()
-    sections = {s["key"]: s for s in result["dimensions"]}
-    if len(sections) != len(DIMENSIONS):
-        raise ValueError("八个维度必须各出现一次，不得重复或遗漏。")
-    allowed = {n["note_id"]: n for n in bundle["notes"]}
-    items = list(result["drafts"])
-    for section in sections.values():
-        if section["status"] == "unavailable" and section["findings"]:
-            raise ValueError("无法判断的维度不得带有确定发现。")
-        if section["status"] != "unavailable" and not section["findings"]:
-            raise ValueError("有结论的维度必须带证据。")
-        items.extend(section["findings"])
-        if section["key"] in ("positioning_audience", "engagement_drivers", "growth_trajectory", "tag_search", "commercial_signals", "action_plan") and section["status"] == "supported":
-            section["status"] = "limited"
-        section["boundary"] = BOUNDARIES[section["key"]]
+def _validate_evidence(items: list[dict], allowed: dict) -> None:
     for item in items:
         seen = set()
         for evidence in item["evidence"]:
@@ -189,15 +174,57 @@ def validate_analysis(payload: dict, bundle: dict) -> dict:
             if key in seen:
                 raise ValueError("同一结论的证据不得重复。")
             seen.add(key)
+
+
+def _validate_dimensions(payload: dict, bundle: dict) -> dict:
+    result = DimensionsOutput.parse_obj(payload).dict()
+    sections = {s["key"]: s for s in result["dimensions"]}
+    if len(sections) != len(DIMENSIONS):
+        raise ValueError("八个维度必须各出现一次，不得重复或遗漏。")
+    allowed = {n["note_id"]: n for n in bundle["notes"]}
+    items = []
+    for section in sections.values():
+        if section["status"] == "unavailable" and section["findings"]:
+            raise ValueError("无法判断的维度不得带有确定发现。")
+        if section["status"] != "unavailable" and not section["findings"]:
+            raise ValueError("有结论的维度必须带证据。")
+        items.extend(section["findings"])
+        if section["key"] in ("positioning_audience", "engagement_drivers", "growth_trajectory", "tag_search", "commercial_signals", "action_plan") and section["status"] == "supported":
+            section["status"] = "limited"
+        section["boundary"] = BOUNDARIES[section["key"]]
+    _validate_evidence(items, allowed)
     priority = sections[result["priority_dimension"]]
     if not priority["findings"]:
         raise ValueError("优先结论必须指向一个有证据的发现。")
-    titles = [t for d in result["drafts"] for t in d["titles"]]
-    if len(set(titles)) != 6 or len({d["topic"] for d in result["drafts"]}) != 3:
-        raise ValueError("三个选题与六个标题不能重复。")
     result["dimensions"] = [sections[k] for k in DIMENSIONS]
     result["headline"] = priority["findings"][0]["next_step"]
     return result
+
+
+def _validate_drafts(payload: dict, bundle: dict) -> dict:
+    result = DraftsOutput.parse_obj(payload).dict()
+    allowed = {n["note_id"]: n for n in bundle["notes"]}
+    _validate_evidence(result["drafts"], allowed)
+    titles = [t for d in result["drafts"] for t in d["titles"]]
+    if len(set(titles)) != 6 or len({d["topic"] for d in result["drafts"]}) != 3:
+        raise ValueError("三个选题与六个标题不能重复。")
+    return result
+
+
+def validate_analysis(payload: dict, bundle: dict) -> dict:
+    missing = [
+        key for key in ("priority_dimension", "dimensions", "strategy", "drafts")
+        if key not in payload
+    ]
+    if missing:
+        raise ValueError("缺少必要字段：" + "、".join(missing))
+    dimensions = _validate_dimensions({
+        "priority_dimension": payload["priority_dimension"],
+        "dimensions": payload["dimensions"],
+        "strategy": payload["strategy"],
+    }, bundle)
+    drafts = _validate_drafts({"drafts": payload["drafts"]}, bundle)
+    return {**dimensions, "drafts": drafts["drafts"]}
 
 
 SYSTEM = """你是为创作者提供工作底稿的内容编辑。根据原始笔记语义理解账号，不使用预设行业词典。
@@ -216,50 +243,86 @@ strategy 必须用四段不同角度回答：账号真正稳定的内容命题�
 def generate_analysis(dataset: dict, goal: str, config: dict, progress=lambda stage: None) -> dict:
     bundle = build_bundle(dataset, goal)
     material = json.dumps(bundle, ensure_ascii=False)
-    prompt = ("生成一份可读、具体的内容解读。优先维度必须有证据。每维最多1条发现。"
-              "必须实际写出3个不同选题，每题2个不同标题、一段可使用的开头、3至5段具体内容大纲、"
-              "一次可操作的测试与复盘指标；同时给出 strategy 四段战略判断。不要只要求用户自行写草稿。"
-              "\n材料：\n" + material)
     usage = []
-    for attempt in range(2):
-        progress("正在生成解读与创作草稿" if not attempt else "正在修复引用或结构问题（最多一次）")
-        try:
-            raw, tokens = generate_json(config, SYSTEM, prompt, Analysis.schema())
-        except AIRequestError as exc:
-            if attempt or exc.code != "length":
-                raise
-            usage.append({})
-            progress("首次输出过长，正在分段生成八维解读与创作草稿")
-            dimensions_prompt = (
-                "只生成分析部分：priority_dimension、strategy 和完整八维 dimensions。"
-                "每维最多1条发现；资料不足时使用 unavailable 和空 findings。所有发现必须引用材料中的原文。"
-                "\n材料：\n" + material
+
+    def generate_stage(label: str, prompt: str, schema: dict, validator) -> dict:
+        stage_prompt = prompt
+        for attempt in range(2):
+            progress(
+                f"正在生成{label}" if not attempt
+                else f"{label}未通过校验，正在自动修复（仅一次）"
             )
-            dimensions_raw, dimensions_tokens = generate_json(
-                config, SYSTEM, dimensions_prompt, DimensionsOutput.schema()
-            )
-            usage.append(dimensions_tokens)
-            drafts_prompt = (
-                "只生成创作草稿：drafts 必须包含3个不同选题，每题2个标题、开头、3至5段大纲、测试和复盘。"
-                "草稿只能引用材料中的原文证据。\n客户目标：\n" + goal + "\n材料：\n" + material
-            )
-            drafts_raw, drafts_tokens = generate_json(
-                config, SYSTEM, drafts_prompt, DraftsOutput.schema()
-            )
-            usage.append(drafts_tokens)
-            raw = {**dimensions_raw, **drafts_raw}
-        else:
+            try:
+                raw, tokens = generate_json(config, SYSTEM, stage_prompt, schema)
+            except AIRequestError as exc:
+                if exc.code != "length":
+                    raise
+                if attempt:
+                    raise ValueError(
+                        f"{label}连续两次达到输出上限，但采集数据和表格已完整保留。"
+                        "请点击“重试生成”，不需要补充正文。"
+                    ) from None
+                usage.append({})
+                stage_prompt += f"\n{label}上次达到token上限，请压缩表达并完整遵守schema。"
+                continue
             usage.append(tokens)
-        progress("正在核对原文引用和交付完整性")
-        try:
-            validated = validate_analysis(raw, bundle)
-            break
-        except ValueError as exc:
-            if attempt:
-                raise ValueError("两次输出均未通过结构或原文引用检查，没有生成交付报告。请更换模型或补充正文后重试。") from None
-            reason = str(exc).strip()[:240]
-            prompt += (f"\n上次输出未通过校验：{reason}\n"
-                       "请重新完整生成，逐项检查schema、维度唯一性、原句引用和标题唯一性。")
+            try:
+                return validator(raw, bundle)
+            except ValueError as exc:
+                if attempt:
+                    raise ValueError(
+                        f"{label}未通过自动结构或原文校验，但采集数据和表格未受影响。"
+                        "请直接点击“重试生成”，不需要补充正文或更换账号。"
+                    ) from None
+                reason = str(exc).strip()[:240]
+                stage_prompt += (
+                    f"\n{label}上次未通过校验：{reason}\n"
+                    "请只重新生成这一段，逐项检查schema、原句引用和唯一性。"
+                )
+        raise ValueError(f"{label}生成失败，请直接点击“重试生成”。")
+
+    if len(bundle["notes"]) >= 20:
+        dimensions_prompt = (
+            "只生成分析部分：priority_dimension、strategy 和完整八维 dimensions。"
+            "每维最多1条发现；资料不足时使用 unavailable 和空 findings。所有发现必须引用材料中的原文。"
+            "\n客户目标：\n" + goal + "\n材料：\n" + material
+        )
+        dimensions = generate_stage(
+            "八维解读与内容战略", dimensions_prompt, DimensionsOutput.schema(), _validate_dimensions
+        )
+        drafts_prompt = (
+            "只生成创作草稿：drafts 必须包含3个不同选题，每题2个标题、开头、3至5段大纲、测试和复盘。"
+            "草稿只能引用材料中的原文证据。\n客户目标：\n" + goal + "\n材料：\n" + material
+        )
+        drafts = generate_stage(
+            "三个选题与创作草稿", drafts_prompt, DraftsOutput.schema(), _validate_drafts
+        )
+        validated = {**dimensions, "drafts": drafts["drafts"]}
+    else:
+        prompt = ("生成一份可读、具体的内容解读。优先维度必须有证据。每维最多1条发现。"
+                  "必须实际写出3个不同选题，每题2个不同标题、一段可使用的开头、3至5段具体内容大纲、"
+                  "一次可操作的测试与复盘指标；同时给出 strategy 四段战略判断。不要只要求用户自行写草稿。"
+                  "\n客户目标：\n" + goal + "\n材料：\n" + material)
+        for attempt in range(2):
+            progress("正在生成解读与创作草稿" if not attempt else "正在修复引用或结构问题（仅一次）")
+            try:
+                raw, tokens = generate_json(config, SYSTEM, prompt, Analysis.schema())
+                usage.append(tokens)
+                validated = validate_analysis(raw, bundle)
+                break
+            except (AIRequestError, ValueError) as exc:
+                if attempt:
+                    raise ValueError(
+                        "解读或原文证据未通过自动校验，但采集数据和表格未受影响。"
+                        "请直接点击“重试生成”，不需要补充正文。"
+                    ) from None
+                reason = str(exc).strip()[:240]
+                prompt += (
+                    f"\n上次输出未通过：{reason}\n"
+                    "请重新生成，逐项检查schema、维度唯一性、原句引用和标题唯一性。"
+                )
+        else:
+            raise ValueError("报告生成失败，请直接点击“重试生成”。")
     report = {"version": VERSION, "generated_at": now_text(), "dataset_fingerprint": fingerprint(dataset),
               "goal": goal, "model": config["model"], "provider": config["provider"], "usage": usage,
               "coverage": bundle["coverage"], "selection": bundle["selection"], "evidence": bundle["notes"],

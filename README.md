@@ -1,6 +1,6 @@
 # 小红书内容整理与 AI 交付
 
-当前开发版本：应用 `0.3.0-beta.4`，浏览器扩展 `0.4.0`。
+当前开发版本：应用 `0.3.0-beta.5`，浏览器扩展 `0.4.0`。
 
 把可访问主页返回的最多100篇公开笔记整理成可搜索、筛选和导出的笔记库，再把固定的一批内容接入 AI 工作台。客户填写目标后，系统生成带原文证据的账号解读、3个原创选题、每组2个标题、开头和正文大纲。结果必须人工复核后才能导出 HTML 或 PDF。
 
@@ -30,7 +30,7 @@
 
 前端构建：在 `frontend` 执行 `npm run build`。
 
-交付构建：`powershell -ExecutionPolicy Bypass -File scripts/build_organizer.ps1 -Version 0.3.0-beta.4`。构建脚本会生成源码快照、EXE目录、前端资源、浏览器扩展、自检、密钥/运行数据扫描、ZIP和源码ZIP。
+交付构建：`powershell -ExecutionPolicy Bypass -File scripts/build_organizer.ps1 -Version 0.3.0-beta.5`。构建脚本会生成源码快照、EXE目录、前端资源、浏览器扩展、自检、密钥/运行数据扫描、ZIP和源码ZIP。
 
 ## 数据与旧版本
 

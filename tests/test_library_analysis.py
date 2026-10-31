@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -122,13 +123,27 @@ class LibraryAnalysisTests(unittest.TestCase):
 
     def test_failure_has_one_repair_only(self):
         with patch("backend.services.library_analysis.generate_json", return_value=({}, {})) as call:
-            with self.assertRaisesRegex(ValueError, "两次输出"):
+            with self.assertRaisesRegex(ValueError, "采集数据和表格未受影响"):
                 generate_analysis(sample_dataset(), "计划三个选题", CONFIG)
         self.assertEqual(call.call_count, 2)
-        self.assertIn("上次输出未通过校验", call.call_args_list[1].args[2])
+        self.assertIn("上次输出未通过", call.call_args_list[1].args[2])
 
     def test_truncated_output_gets_one_compact_retry(self):
         bundle = build_bundle(sample_dataset(), "计划三个选题")
+        with patch("backend.services.library_analysis.generate_json",
+                   side_effect=[AIRequestError("模型输出达到 token 上限。", "length"),
+                                (sample_output(bundle), {"output_tokens": 99})]) as call:
+            report = generate_analysis(sample_dataset(), "计划三个选题", CONFIG)
+        self.assertEqual(report["analysis"]["drafts"][0]["topic"], "对照实验选题 0")
+        self.assertEqual(call.call_count, 2)
+        self.assertIn("token 上限", call.call_args_list[1].args[2])
+
+    def test_large_batch_uses_independent_analysis_and_draft_stages(self):
+        dataset = sample_dataset()
+        template = dataset["rows"][0]
+        for index in range(12, 20):
+            dataset["rows"].append({**template, "note_id": f"note-{index}", "title": f"手机摄影实测记录第{index}篇"})
+        bundle = build_bundle(dataset, "计划三个选题")
         output = sample_output(bundle)
         dimensions = {
             "priority_dimension": output["priority_dimension"],
@@ -137,14 +152,13 @@ class LibraryAnalysisTests(unittest.TestCase):
         }
         drafts = {"drafts": output["drafts"]}
         with patch("backend.services.library_analysis.generate_json",
-                   side_effect=[AIRequestError("模型输出达到 token 上限。", "length"),
-                                (dimensions, {"output_tokens": 60}),
+                   side_effect=[(dimensions, {"output_tokens": 60}),
                                 (drafts, {"output_tokens": 39})]) as call:
-            report = generate_analysis(sample_dataset(), "计划三个选题", CONFIG)
-        self.assertEqual(report["analysis"]["drafts"][0]["topic"], "对照实验选题 0")
-        self.assertEqual(call.call_count, 3)
-        self.assertIn("只生成分析部分", call.call_args_list[1].args[2])
-        self.assertIn("只生成创作草稿", call.call_args_list[2].args[2])
+            report = generate_analysis(dataset, "计划三个选题", CONFIG)
+        self.assertEqual(report["analytics"]["notes"], 20)
+        self.assertEqual(call.call_count, 2)
+        self.assertIn("只生成分析部分", call.call_args_list[0].args[2])
+        self.assertIn("只生成创作草稿", call.call_args_list[1].args[2])
 
     def test_export_escapes_and_excludes_private_metadata(self):
         b = build_bundle(sample_dataset(), "测试 <script>alert(1)</script>")
@@ -192,6 +206,20 @@ class LibraryAnalysisTests(unittest.TestCase):
             self.assertIsNone(current["report"])
             with self.assertRaises(ValueError):
                 analysis_worker.approve(root, ds, "old")
+
+    def test_another_live_process_can_own_running_report(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(analysis_worker, "_process_alive", return_value=True):
+            root, ds = Path(tmp), sample_dataset()
+            state = {
+                "status": "running",
+                "run_id": "other-process",
+                "analysis_version": VERSION,
+                "process_id": os.getpid() + 100000,
+                "dataset_fingerprint": fingerprint(ds),
+                "report": None,
+            }
+            analysis_worker._save(root / "content_analysis.json", state)
+            self.assertEqual(analysis_worker.read_state(root, ds)["status"], "running")
 
     def test_concurrent_submission_blocked(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(analysis_worker._pool, "submit"):

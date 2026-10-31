@@ -94,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('mode',choices=['snapshot','scan','lock'])
     parser.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1])
     parser.add_argument('--out',type=Path)
-    parser.add_argument('--version',default='0.3.0-beta.4')
+    parser.add_argument('--version',default='0.3.0-beta.5')
     args=parser.parse_args()
     if args.mode=='snapshot':
         m=snapshot(args.root,args.out,args.version)

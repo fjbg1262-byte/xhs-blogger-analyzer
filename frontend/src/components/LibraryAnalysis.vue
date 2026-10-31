@@ -3,7 +3,7 @@
     <header class="workspace-head"><div><p class="kicker">内容交付工作台</p><h2>从真实笔记，到下一篇内容</h2></div><span class="state-label">{{ stateLabel }}</span></header>
     <form class="request-form" @submit.prevent="generate">
       <label>客户这次最想解决什么？<textarea v-model="goal" rows="3" maxlength="1200" minlength="5" required placeholder="例如：我是刚开始拍手机摄影的新手，希望找到适合周末拍摄的三个选题，重点帮我改标题和开头。" :disabled="running" /></label>
-      <div class="request-actions"><label class="consent"><input v-model="consent" type="checkbox" :disabled="running" />同意将本批公开文字与目标发送至 {{ state.provider || '已配置的' }} AI 服务商，由我承担 API 费用</label><button class="btn btn-primary" :disabled="running || collecting || !state.configured || count < 5 || !consent || submitting"><LoaderCircle v-if="running" :size="17" class="spin" /><Sparkles v-else :size="17" />{{ running ? '正在生成' : report ? '重新生成' : '生成解读与创作草稿' }}</button></div>
+      <div class="request-actions"><label class="consent"><input v-model="consent" type="checkbox" :disabled="running" />同意将本批公开文字与目标发送至 {{ state.provider || '已配置的' }} AI 服务商，由我承担 API 费用</label><button class="btn btn-primary" :disabled="running || collecting || !state.configured || count < 5 || !consent || submitting"><LoaderCircle v-if="running" :size="17" class="spin" /><Sparkles v-else :size="17" />{{ running ? '正在生成' : state.status === 'failed' ? '重试生成' : report ? '重新生成' : '生成解读与创作草稿' }}</button></div>
       <p v-if="!state.configured" class="notice">尚未配置 AI。<router-link to="/settings">前往设置</router-link></p>
       <p v-else class="subtle">{{ state.model }} · 全批 {{ count }} 篇（不受表格筛选影响） · 仅文字分析，不发送 Cookie、密钥、图片或评论</p>
       <p v-if="collecting" class="notice">请先完成或停止采集。</p>
@@ -11,6 +11,7 @@
     </form>
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="state.stage" aria-live="polite" :class="['stage', { error: ['failed','stale'].includes(state.status) }]"><LoaderCircle v-if="running" class="spin" :size="18" />{{ state.stage }}</p>
+    <p v-if="state.status === 'failed'" class="notice">本次采集数据和 Excel/CSV/飞书导出不受影响。AI 输出未通过自动校验时，直接点击“重试生成”即可，不需要补充正文。</p>
     <template v-if="report">
       <div class="report-heading"><p class="kicker">{{ report.account_name }} · 本次优先建议</p><h3>{{ report.analysis.headline }}</h3><p class="subtle">客户目标：{{ report.goal }}</p></div>
       <div class="coverage"><span>笔记 <b>{{ report.coverage.notes }}</b></span><span>已采正文 <b>{{ report.coverage.bodies_collected }}</b></span><span>AI 阅读正文摘录 <b>{{ report.coverage.bodies_sent }}</b></span><span>点赞中位数 <b>{{ report.coverage.median_likes ?? '未获取' }}</b></span></div>

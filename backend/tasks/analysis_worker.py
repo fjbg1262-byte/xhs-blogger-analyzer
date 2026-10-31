@@ -1,5 +1,7 @@
 """One paid analysis per owner, persisted stages and explicit delivery approval."""
 import json
+import ctypes
+import os
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +13,24 @@ from backend.services.structured_ai import AIRequestError
 _pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="content-ai")
 _lock = threading.RLock()
 _active = {}
+
+
+def _process_alive(pid: int) -> bool:
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return False
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return True
 
 
 def _save(path: Path, value: dict):
@@ -30,8 +50,11 @@ def read_state(task_dir: Path, dataset: dict) -> dict:
         if not state:
             return {"status": "idle"}
         if state["status"] == "running" and state.get("run_id") not in _active.values():
-            state.update(status="failed", stage="上次生成已中断，请重新生成。")
-            _save(task_dir / "content_analysis.json", state)
+            owner_pid = state.get("process_id")
+            owned_elsewhere = owner_pid != os.getpid() and _process_alive(owner_pid)
+            if not owned_elsewhere:
+                state.update(status="failed", stage="上次生成已中断，请直接点击“重试生成”。")
+                _save(task_dir / "content_analysis.json", state)
         if state.get("dataset_fingerprint") != fingerprint(dataset):
             return {**state, "status": "stale", "stage": "笔记库已变化，请重新生成。", "report": None}
         if state.get("status") in ("ready", "running"):
@@ -60,6 +83,7 @@ def start_analysis(task_dir: Path, dataset: dict, goal: str, config: dict, owner
             raise ValueError("当前生成队列已满，请稍后重试。")
         run_id = uuid.uuid4().hex
         state = {"run_id": run_id, "analysis_version": VERSION, "status": "running",
+                 "process_id": os.getpid(),
                  "stage": "已准备材料，等待模型处理",
                  "dataset_fingerprint": fingerprint(dataset), "goal": goal, "report": None}
         _save(task_dir / "content_analysis.json", state)

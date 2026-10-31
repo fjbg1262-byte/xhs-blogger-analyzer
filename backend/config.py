@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440
 
     # Optional anonymous product telemetry. Disabled until the user consents.
-    app_version: str = "0.3.0-beta.4"
+    app_version: str = "0.3.0-beta.5"
     telemetry_endpoint: str = ""
     telemetry_ingest_key: str = ""
 

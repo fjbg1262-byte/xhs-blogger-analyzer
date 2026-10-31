@@ -5,7 +5,7 @@
         <div class="brand-mark" aria-hidden="true">析</div>
         <div class="brand-copy">
           <strong>内容整理与 AI 交付</strong>
-          <span>0.3.0-beta.4 工作台</span>
+          <span>0.3.0-beta.5 工作台</span>
         </div>
       </div>
       <nav class="header-nav">
