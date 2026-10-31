@@ -21,6 +21,7 @@
 - [目录、版本和构建规则](docs/PROJECT_LAYOUT.md)
 - [当前进度与验证](docs/IMPLEMENTATION_STATUS.md)
 - [测试记录及真实环境待验收项](docs/VERIFICATION.md)
+- [商品化竞品拆解、产品定位、飞书规范与开发路线](docs/product/README.md)
 
 ## 本地开发
 
