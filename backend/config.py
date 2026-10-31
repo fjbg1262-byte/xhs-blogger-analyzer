@@ -11,7 +11,7 @@ from backend.runtime import app_root, find_resource, writable_path
 
 # Provider presets: (default_api_url, default_model)
 PROVIDER_PRESETS = {
-    "openai":     ("https://api.openai.com/v1",             "gpt-4o-mini"),
+    "openai":     ("https://api.openai.com/v1",             "gpt-5.4-mini"),
     "deepseek":   ("https://api.deepseek.com/v1",           "deepseek-chat"),
     "kimi":       ("https://api.moonshot.cn/v1",            "moonshot-v1-8k"),
     "qwen":       ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440
 
     # Optional anonymous product telemetry. Disabled until the user consents.
-    app_version: str = "0.1.0-beta.3"
+    app_version: str = "0.3.0-beta.4"
     telemetry_endpoint: str = ""
     telemetry_ingest_key: str = ""
 

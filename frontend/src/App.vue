@@ -4,16 +4,14 @@
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true">析</div>
         <div class="brand-copy">
-          <strong>博主分析助手</strong>
-          <span>本地测试版</span>
+          <strong>内容整理与 AI 交付</strong>
+          <span>0.3.0-beta.4 工作台</span>
         </div>
       </div>
       <nav class="header-nav">
         <template v-if="isAuthenticated()">
-          <router-link to="/dashboard"><span class="nav-icon" aria-hidden="true">⌂</span>首页</router-link>
-          <router-link to="/analysis/new"><span class="nav-icon" aria-hidden="true">＋</span>新建分析</router-link>
-          <router-link to="/competitors"><span class="nav-icon" aria-hidden="true">⌕</span>对标搜索</router-link>
-          <router-link to="/history"><span class="nav-icon" aria-hidden="true">◷</span>历史记录</router-link>
+          <router-link to="/library"><span class="nav-icon" aria-hidden="true">▤</span>笔记库</router-link>
+          <router-link to="/history"><span class="nav-icon" aria-hidden="true">◷</span>旧版报告记录</router-link>
           <router-link to="/settings"><span class="nav-icon" aria-hidden="true">⚙</span>设置</router-link>
           <button class="nav-button" type="button" title="退出登录" @click="logout">
             <span class="nav-icon" aria-hidden="true">↪</span>

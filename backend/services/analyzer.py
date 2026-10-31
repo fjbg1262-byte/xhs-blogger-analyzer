@@ -13,6 +13,8 @@ def run_analysis(
     profile_path: str,
     output_path: str,
     contents_path=None,
+    comments_path=None,
+    search_path=None,
     quality_output_path=None,
     timeout: int = 120,
 ) -> dict:
@@ -36,6 +38,10 @@ def run_analysis(
         ]
     if contents_path and Path(contents_path).exists():
         cmd.extend(["--contents", contents_path])
+    if comments_path and Path(comments_path).exists():
+        cmd.extend(["--comments", comments_path])
+    if search_path and Path(search_path).exists():
+        cmd.extend(["--search", search_path])
     if quality_output_path:
         cmd.extend(["--quality-output", quality_output_path])
 

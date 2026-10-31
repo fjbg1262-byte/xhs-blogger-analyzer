@@ -188,8 +188,9 @@ const progressRingOffset = computed(() => {
 const progressSteps = computed(() => {
   const fallback = [
     { key: 'prepare', label: '准备任务', progress: 5 },
-    { key: 'collect', label: '采集主页公开内容', progress: 40 },
-    { key: 'analyze', label: '识别主题与互动表现', progress: 70 },
+    { key: 'collect', label: '采集主页公开内容', progress: 28 },
+    { key: 'enrich', label: '补充正文、媒体、评论与搜索', progress: 70 },
+    { key: 'analyze', label: '完成八维证据分析', progress: 84 },
     { key: 'report', label: '生成分析报告', progress: 90 },
     { key: 'finish', label: '保存结果', progress: 100 },
   ]

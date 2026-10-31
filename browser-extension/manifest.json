@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "XHS Analyzer Helper",
-  "version": "0.3.0",
-  "description": "Analyze the current Xiaohongshu blogger with the local XHS Blogger Analyzer.",
+  "name": "小红书主页内容整理器",
+  "version": "0.4.0",
+  "description": "将主页公开笔记整理为 Excel、CSV 和飞书导入表，并接入本地 AI 内容交付工作台。配合本地 0.3 版使用。",
   "permissions": ["activeTab", "cookies", "clipboardWrite"],
   "host_permissions": [
     "https://www.xiaohongshu.com/*",

@@ -1,7 +1,7 @@
 param(
   [string]$Version = "test",
   [string]$SourceVersion = "windows",
-  [string]$AppVersion = "0.1.0-beta.3",
+  [string]$AppVersion = "0.1.0-beta.10",
   [string]$TelemetryEndpoint = $env:TELEMETRY_ENDPOINT,
   [string]$TelemetryIngestKey = $env:TELEMETRY_INGEST_KEY,
   [switch]$SkipBuild

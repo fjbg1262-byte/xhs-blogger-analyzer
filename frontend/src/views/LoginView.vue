@@ -1,8 +1,8 @@
 <template>
   <div class="login-page">
     <div class="login-panel">
-      <h1>XHS Analyzer</h1>
-      <p>登录后管理自己的 Cookie、任务和报告。</p>
+      <h1>主页内容整理器</h1>
+      <p>本地登录后管理笔记库、采集记录和导出文件。</p>
 
       <div class="tabs">
         <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
@@ -52,7 +52,7 @@ async function submit() {
     const apiCall = mode.value === 'login' ? authAPI.login : authAPI.register
     const res = await apiCall(username.value.trim(), password.value)
     setAuth(res.data.access_token, res.data.username)
-    router.push(String(route.query.redirect || '/dashboard'))
+    router.push(String(route.query.redirect || '/library'))
   } catch (e: any) {
     error.value = e.response?.data?.detail || e.message || '操作失败'
   } finally {

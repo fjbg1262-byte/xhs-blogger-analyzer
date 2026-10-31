@@ -2,21 +2,26 @@
 
 import json
 import os
+import re
+import base64
+import hashlib
 from pathlib import Path
+from typing import Optional, Tuple
 
 import httpx
-from backend.config import settings
+from backend.config import settings, PROVIDER_PRESETS
 
 
-_CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "llm_config.json"
+def config_path() -> Path:
+    return Path(settings.data_dir) / "llm_config.json"
 
 
 def _runtime_config(user_id=None) -> dict:
     """Load runtime LLM config (written by user via Settings page), merged with env defaults."""
     runtime = {}
-    if _CONFIG_FILE.exists():
+    if config_path().exists():
         try:
-            runtime = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+            runtime = json.loads(config_path().read_text(encoding="utf-8"))
         except Exception:
             pass
     if user_id is not None and isinstance(runtime, dict) and "users" in runtime:
@@ -24,6 +29,23 @@ def _runtime_config(user_id=None) -> dict:
     if isinstance(runtime, dict):
         return {k: v for k, v in runtime.items() if k.startswith("llm_")}
     return {}
+
+
+def ai_config_status(user_id=None) -> dict:
+    rc = _runtime_config(user_id)
+    provider = rc.get("llm_provider") or settings.llm_provider
+    preset_url, preset_model = PROVIDER_PRESETS.get(provider, ("", ""))
+    same_provider = provider == settings.llm_provider
+    api_key = rc.get("llm_api_key") or (settings.llm_api_key if same_provider else "")
+    api_url = rc.get("llm_api_url") or (settings.llm_api_url if same_provider else preset_url)
+    model = rc.get("llm_model") or (settings.llm_model if same_provider else preset_model)
+    return {
+        "configured": bool(api_key and api_url and model),
+        "provider": provider,
+        "api_key": api_key,
+        "api_url": api_url,
+        "model": model,
+    }
 
 
 def _call_llm(system: str, user_msg: str, max_tokens: int = 1024, user_id=None) -> str:
@@ -35,12 +57,8 @@ def _call_llm(system: str, user_msg: str, max_tokens: int = 1024, user_id=None) 
 
     Reads config from runtime file first, then falls back to env vars.
     """
-    rc = _runtime_config(user_id)
-
-    provider = rc.get("llm_provider") or settings.llm_provider
-    api_key = rc.get("llm_api_key") or settings.llm_api_key
-    api_url = rc.get("llm_api_url") or settings.llm_api_url
-    model = rc.get("llm_model") or settings.llm_model
+    cfg = ai_config_status(user_id)
+    provider, api_key, api_url, model = (cfg[k] for k in ("provider", "api_key", "api_url", "model"))
 
     if not api_key:
         return f"AI 功能需要配置 API Key（Settings 页面 → LLM 设置）。当前 provider: {provider}"
@@ -75,7 +93,7 @@ def _call_llm(system: str, user_msg: str, max_tokens: int = 1024, user_id=None) 
             {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
         ],
-        "max_tokens": max_tokens,
+        "max_completion_tokens" if provider == "openai" else "max_tokens": max_tokens,
     }
     try:
         resp = httpx.post(url, headers=headers, json=body, timeout=120)
@@ -84,6 +102,298 @@ def _call_llm(system: str, user_msg: str, max_tokens: int = 1024, user_id=None) 
         return data["choices"][0]["message"]["content"]
     except Exception as e:
         return f"AI 调用失败 ({provider}): {str(e)}"
+
+
+def _supports_vision(provider: str, model: str) -> bool:
+    value = f"{provider} {model}".lower()
+    return any(token in value for token in ("gpt-4o", "vision", "vl", "claude", "gemini"))
+
+
+def _fetch_image_source(url: str) -> Optional[Tuple[str, str]]:
+    try:
+        response = httpx.get(url, timeout=20, follow_redirects=True)
+        response.raise_for_status()
+        if len(response.content) > 4 * 1024 * 1024:
+            return None
+        media_type = response.headers.get("content-type", "image/jpeg").split(";")[0]
+        if not media_type.startswith("image/"):
+            media_type = "image/jpeg"
+        return media_type, base64.b64encode(response.content).decode("ascii")
+    except Exception:
+        return None
+
+
+def _call_multimodal_json(system: str, prompt: str, image_urls: list[str], user_id=None) -> str:
+    cfg = ai_config_status(user_id)
+    if not cfg["configured"]:
+        return ""
+    provider = cfg["provider"]
+    api_url = cfg["api_url"]
+    model = cfg["model"]
+    headers = {"Content-Type": "application/json"}
+    use_images = image_urls[:8] if _supports_vision(provider, model) else []
+
+    if provider == "claude":
+        headers["x-api-key"] = cfg["api_key"]
+        headers["anthropic-version"] = "2023-06-01"
+        content = [{"type": "text", "text": prompt}]
+        for url in use_images:
+            fetched = _fetch_image_source(url)
+            if fetched:
+                media_type, data = fetched
+                content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media_type, "data": data},
+                })
+        body = {
+            "model": model,
+            "max_tokens": 3000,
+            "system": system,
+            "messages": [{"role": "user", "content": content}],
+        }
+        try:
+            response = httpx.post(api_url.rstrip("/") + "/messages", headers=headers, json=body, timeout=180)
+            response.raise_for_status()
+            return response.json()["content"][0]["text"]
+        except Exception:
+            return ""
+
+    headers["Authorization"] = f"Bearer {cfg['api_key']}"
+    content = [{"type": "text", "text": prompt}]
+    content.extend(
+        {"type": "image_url", "image_url": {"url": url, "detail": "low"}}
+        for url in use_images
+    )
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": content if use_images else prompt},
+        ],
+        "max_completion_tokens" if provider == "openai" else "max_tokens": 6000,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        response = httpx.post(api_url.rstrip("/") + "/chat/completions", headers=headers, json=body, timeout=180)
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception:
+        # Some OpenAI-compatible providers reject response_format or image blocks.
+        body.pop("response_format", None)
+        body["messages"][1]["content"] = prompt
+        try:
+            response = httpx.post(api_url.rstrip("/") + "/chat/completions", headers=headers, json=body, timeout=180)
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except Exception:
+            return ""
+
+
+AI_DIMENSION_KEYS = (
+    "positioning_audience",
+    "content_structure",
+    "title_hook",
+    "engagement_drivers",
+    "growth_trajectory",
+    "tag_search",
+    "commercial_signals",
+    "action_plan",
+)
+
+
+def _number(value) -> int:
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value or "").strip()
+    try:
+        if "万" in text:
+            return int(float(text.replace("万", "")) * 10000)
+        return int(float(text))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _parse_json_response(text: str) -> dict:
+    if not text:
+        return {}
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.I | re.S)
+    try:
+        value = json.loads(cleaned)
+        return value if isinstance(value, dict) else {}
+    except (ValueError, TypeError):
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                value = json.loads(cleaned[start:end + 1])
+                return value if isinstance(value, dict) else {}
+            except (ValueError, TypeError):
+                pass
+    return {}
+
+
+def build_grounded_ai_enhancement(
+    results: dict,
+    all_notes: list[dict],
+    contents: list[dict],
+    comments: list[dict],
+    user_id=None,
+    context=None,
+) -> dict:
+    """Generate evidence-bound AI interpretation for the eight delivery dimensions."""
+    cfg = ai_config_status(user_id)
+    if not cfg["configured"]:
+        return {
+            "enabled": False,
+            "status": "not_configured",
+            "message": "未配置 AI API，报告使用结构化规则分析。",
+            "dimensions": {},
+        }
+
+    note_by_id = {str(note.get("note_id")): note for note in all_notes if note.get("note_id")}
+    content_by_id = {str(item.get("note_id")): item for item in contents if item.get("note_id")}
+    evidence_ids = []
+    for dimension in (results.get("eight_dimensions") or {}).values():
+        for note_id in dimension.get("evidence_note_ids", []):
+            if note_id in note_by_id and note_id not in evidence_ids:
+                evidence_ids.append(note_id)
+    for note in sorted(all_notes, key=lambda item: _number(item.get("liked_count", 0)), reverse=True):
+        note_id = str(note.get("note_id") or "")
+        if note_id and note_id not in evidence_ids:
+            evidence_ids.append(note_id)
+        if len(evidence_ids) >= 24:
+            break
+
+    evidence = []
+    image_urls = []
+    for note_id in evidence_ids[:24]:
+        note = note_by_id[note_id]
+        content = content_by_id.get(note_id, {})
+        images = content.get("image_urls") or []
+        cover = content.get("cover_url") or (images[0] if images else "") or note.get("cover_url", "")
+        image_index = None
+        if cover and cover not in image_urls:
+            image_urls.append(cover)
+            image_index = len(image_urls)
+        elif cover:
+            image_index = image_urls.index(cover) + 1
+        evidence.append({
+            "note_id": note_id,
+            "title": note.get("title", ""),
+            "type": note.get("type", ""),
+            "likes": note.get("liked_count", 0),
+            "favorites": content.get("collected_count", 0),
+            "comments": content.get("comment_count", 0),
+            "shares": content.get("share_count", 0),
+            "body_excerpt": str(content.get("content_text") or "")[:500],
+            "tags": (content.get("tags") or [])[:10],
+            "image_count": len(images),
+            "has_video": bool(content.get("video_url")),
+            "visual_input_index": image_index if image_index and image_index <= 8 else None,
+        })
+
+    comment_evidence = sorted(
+        [comment for comment in comments if str(comment.get("content") or "").strip()],
+        key=lambda item: _number(item.get("like_count", 0)),
+        reverse=True,
+    )[:50]
+    bundle = {
+        "customer_goal": context or {},
+        "verified_summary": {
+            "profile": results.get("profile", {}),
+            "data_quality": results.get("data_quality", {}),
+            "eight_dimensions": results.get("eight_dimensions", {}),
+            "topics": results.get("topic_clusters", [])[:10],
+            "hooks": results.get("hook_analysis", {}),
+            "engagement": results.get("engagement_drivers", {}),
+            "search": results.get("search_landscape", {}),
+            "commercial": results.get("commercial", {}),
+        },
+        "note_evidence": evidence,
+        "comment_evidence": [
+            {
+                "comment_id": item.get("comment_id", ""),
+                "note_id": item.get("note_id", ""),
+                "content": item.get("content", ""),
+                "like_count": item.get("like_count", 0),
+                "ip_location": item.get("ip_location", ""),
+            }
+            for item in comment_evidence
+        ],
+    }
+    system = (
+        "你是严谨的小红书账号研究员。只能解释输入中的事实，不得创造数字、平台机制、粉丝属性、因果关系或商业结果。"
+        "每条判断必须引用输入中真实存在的 note_id；证据不足时明确写局限。"
+    )
+    prompt = f"""请基于下面的已核验数据，为8个维度生成AI增强解读。
+
+只返回JSON对象，结构必须是：
+{{
+  "dimensions": {{
+    "positioning_audience": {{"summary":"", "findings":[""], "evidence_note_ids":[""], "confidence":"medium", "limits":[""]}},
+    "content_structure": {{...}},
+    "title_hook": {{...}},
+    "engagement_drivers": {{...}},
+    "growth_trajectory": {{...}},
+    "tag_search": {{...}},
+    "commercial_signals": {{...}},
+    "action_plan": {{...}}
+  }}
+}}
+
+要求：
+1. 每维 summary 不超过120字，findings最多4条。
+2. evidence_note_ids只能从输入出现的note_id中选择，最多6条。
+3. 不把相关性写成因果；不推断年龄、性别、收入、曝光、搜索量、涨粉或成交。
+4. 图片仅按输入顺序对应 note_evidence 中具有封面的样本，只描述清楚可见的构图、首屏文字与信息密度。
+5. action_plan必须是可执行测试，不承诺结果。
+
+已核验数据：
+{json.dumps(bundle, ensure_ascii=False, separators=(',', ':'))}
+"""
+    raw = _call_multimodal_json(system, prompt, image_urls, user_id=user_id)
+    parsed = _parse_json_response(raw)
+    dimensions = {}
+    allowed_ids = {item["note_id"] for item in evidence}
+    for key in AI_DIMENSION_KEYS:
+        item = (parsed.get("dimensions") or {}).get(key)
+        if not isinstance(item, dict):
+            continue
+        ids = [note_id for note_id in item.get("evidence_note_ids", []) if note_id in allowed_ids][:6]
+        findings = [str(value).strip()[:220] for value in item.get("findings", []) if str(value).strip()][:4]
+        summary = str(item.get("summary") or "").strip()[:260]
+        if not summary or (key != "action_plan" and not ids):
+            continue
+        dimensions[key] = {
+            "summary": summary,
+            "findings": findings,
+            "evidence_note_ids": ids,
+            "confidence": item.get("confidence") if item.get("confidence") in ("high", "medium", "low") else "medium",
+            "limits": [str(value).strip()[:180] for value in item.get("limits", []) if str(value).strip()][:3],
+        }
+    if not dimensions:
+        return {
+            "enabled": False,
+            "status": "failed",
+            "message": "AI 调用未返回可校验的结构化结果，已保留规则分析。",
+            "dimensions": {},
+        }
+    return {
+        "enabled": True,
+        "status": "ready" if len(dimensions) == len(AI_DIMENSION_KEYS) else "partial",
+        "provider": cfg["provider"],
+        "model": cfg["model"],
+        "multimodal": bool(image_urls and _supports_vision(cfg["provider"], cfg["model"])),
+        "image_sample_count": min(len(image_urls), 8),
+        "dimensions": dimensions,
+        "dimension_count": len(dimensions),
+        "scope": "AI只解释已核验的公开数据和代表媒体，不覆盖原始数字，不替代证据边界。",
+    }
+
+
+def enhancement_fingerprint(results, notes, contents, comments, context):
+    clean = {key: value for key, value in results.items() if key != "ai_enhancement"}
+    payload = ["legacy-ai-input-v2", clean, notes, contents, comments, context]
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
 def deconstruct_notes(all_notes: list[dict], top_n: int = 10, user_id=None) -> str:

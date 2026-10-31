@@ -34,7 +34,7 @@ function setStatus(kind, title, detail) {
 function setBusy(isBusy) {
   analyzeBtn.disabled = isBusy;
   checkBtn.disabled = isBusy;
-  analyzeBtn.textContent = isBusy ? "正在创建任务..." : "🎯 分析当前博主";
+  analyzeBtn.textContent = isBusy ? "正在创建任务..." : "整理当前主页";
 }
 
 function getActiveTab() {
@@ -44,7 +44,7 @@ function getActiveTab() {
 function isProfileUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    return url.hostname.includes("xiaohongshu.com") && url.pathname.includes("/user/profile/");
+    return ["xiaohongshu.com", "www.xiaohongshu.com"].includes(url.hostname) && /^\/user\/profile\/[A-Za-z0-9_-]{8,64}\/?$/.test(url.pathname);
   } catch {
     return false;
   }
@@ -55,7 +55,7 @@ async function refreshCurrentPage() {
   currentProfileUrl = tab?.url || "";
 
   if (!isProfileUrl(currentProfileUrl)) {
-    setStatus("warn", "先打开博主主页", "请在小红书里打开一个博主主页，再点击分析。");
+    setStatus("warn", "先打开博主主页", "请在小红书里打开一个博主主页，再点击整理。");
     return false;
   }
 
@@ -120,18 +120,19 @@ async function refreshCredential(showReadyStatus = true) {
   if (!showReadyStatus) return true;
 
   if (missingNiceToHave.length) {
-    setStatus("ok", "可以分析", `已读取 ${cookies.length} 项登录信息。缺少 a1 没关系，本地工具会自动处理。`);
+    setStatus("warn", "缺少部分登录信息", "没有读取到 a1，请先刷新已登录的小红书页面后重试。");
     return true;
   }
 
-  setStatus("ok", "可以分析", `已读取 ${cookies.length} 项登录信息，可以开始分析。`);
+  setStatus("ok", "可以整理", `已读取 ${cookies.length} 项登录信息，可以开始整理。`);
   return true;
 }
 
 async function checkBackend() {
   try {
     const response = await fetch(`${BACKEND_BASE}/api/health`, { method: "GET" });
-    return response.ok;
+    const payload = await response.json();
+    return response.ok && payload.organizer_schema === "1.0";
   } catch {
     return false;
   }
@@ -148,12 +149,12 @@ async function analyzeCurrentBlogger() {
 
     const backendOk = await checkBackend();
     if (!backendOk) {
-      setStatus("error", "本地工具没启动", "请先启动本地分析工具，然后再点一次分析。");
+      setStatus("error", "请启动新版整理器", "需要 0.3 内容交付版；如果旧版本占用端口，请先关闭旧工具。");
       return;
     }
 
-    setStatus("ok", "正在创建任务", "本地工具已经收到请求，马上打开报告页。");
-    const response = await fetch(`${BACKEND_BASE}/api/extension/analyze-current`, {
+    setStatus("ok", "正在创建任务", "马上打开笔记库，采集过程中也能下载已有数据。");
+    const response = await fetch(`${BACKEND_BASE}/api/extension/collect-current`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -169,7 +170,7 @@ async function analyzeCurrentBlogger() {
 
     chrome.tabs.create({ url: data.report_url || FRONTEND_BASE });
   } catch (error) {
-    setStatus("error", "没有成功开始分析", error.message || "请刷新小红书页面后重试。");
+    setStatus("error", "没有成功开始整理", error.message || "请刷新小红书页面后重试。");
   } finally {
     setBusy(false);
   }
@@ -178,7 +179,7 @@ async function analyzeCurrentBlogger() {
 async function copyCredential() {
   if (!currentCookieText) await refreshCredential(false);
   await navigator.clipboard.writeText(currentCookieText);
-  setStatus("ok", "已复制", "登录凭证已经复制，可以粘贴到本地分析工具里备用。");
+  setStatus("ok", "已复制", "登录凭证已经复制，仅供本机备用，请勿转发给他人。");
 }
 
 function downloadCredential() {
@@ -217,5 +218,5 @@ openAppBtn.addEventListener("click", () => {
 });
 
 Promise.all([refreshCurrentPage(), refreshCredential(false)]).catch(() => {
-  setStatus("warn", "等待检查", "请先登录小红书，并打开要分析的博主主页。");
+  setStatus("warn", "等待检查", "请先登录小红书，并打开要整理的博主主页。");
 });

@@ -42,7 +42,8 @@ def find_resource(*parts: str) -> Path:
 
 def writable_path(*parts: str) -> Path:
     """Return a path intended for user data generated at runtime."""
-    base = Path(os.environ.get("XHS_APP_HOME") or app_root())
+    default = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "XHSOrganizer" / "0.2" if is_frozen() else app_root()
+    base = Path(os.environ.get("XHS_APP_HOME") or default)
     return base.joinpath(*parts)
 
 

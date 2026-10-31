@@ -36,7 +36,7 @@
           <strong>{{ confidenceLabel(summary.data_confidence) }}</strong>
         </div>
         <div class="metric">
-          <span>质检分</span>
+          <span>报告语义质检</span>
           <strong>{{ quality?.score ?? '-' }}</strong>
         </div>
       </div>
@@ -44,7 +44,7 @@
 
     <section class="quick-judgement">
       <div class="judgement-block">
-        <span class="block-label">最值得学</span>
+        <span class="block-label">优先验证</span>
         <h3>{{ strongestInsight?.title || '暂未形成足够稳定的强结论' }}</h3>
         <p>{{ strongestInsight?.summary || '当前数据更适合先补充样本，再做选题判断。' }}</p>
         <button v-if="strongestInsight" class="text-button" @click="focusEvidence(strongestInsight)">
@@ -82,13 +82,33 @@
         </div>
         <div class="flow-metric" :class="{ weak: contentCoverageWeak }">
           <span>正文覆盖</span>
-          <strong>{{ formatRatio(dataQuality.content_text_completeness) }}</strong>
-          <small>{{ contentCoverageWeak ? '低于 50%，正文结构只做弱参考' : '可进入正文结构分析' }}</small>
+          <strong>{{ dataQuality.content_sample_count || 0 }} 篇</strong>
+          <small>{{ contentCoverageWeak ? `未达到 ${dataQuality.detail_required_count || 0} 篇分层样本门槛` : '分层详情样本达到分析门槛' }}</small>
         </div>
         <div class="flow-metric" :class="{ weak: tagCoverageWeak }">
           <span>标签覆盖</span>
-          <strong>{{ formatRatio(dataQuality.tag_completeness) }}</strong>
-          <small>{{ tagCoverageWeak ? '低于 50%，SEO 只做弱参考' : '可进入标签与 SEO 分析' }}</small>
+          <strong>{{ dataQuality.tag_sample_count || 0 }} 篇</strong>
+          <small>{{ tagCoverageWeak ? `未达到 ${dataQuality.detail_required_count || 0} 篇分层样本门槛` : '分层标签样本达到分析门槛' }}</small>
+        </div>
+        <div class="flow-metric" :class="{ weak: commentCoverageWeak }">
+          <span>代表评论</span>
+          <strong>{{ dataQuality.comment_sample_count || 0 }} 条</strong>
+          <small>覆盖 {{ dataQuality.comment_note_count || 0 }} 篇笔记，用于受众问题与互动线索</small>
+        </div>
+        <div class="flow-metric" :class="{ weak: mediaCoverageWeak }">
+          <span>图片/视频详情</span>
+          <strong>{{ dataQuality.media_sample_count || 0 }} 篇</strong>
+          <small>统计图片页数、视频标记与代表媒体地址</small>
+        </div>
+        <div class="flow-metric" :class="{ weak: searchCoverageWeak }">
+          <span>搜索表达研究</span>
+          <strong>{{ dataQuality.search_keyword_count || 0 }} 个词</strong>
+          <small>来自关键词联想和少量公开搜索结果，不代表搜索量</small>
+        </div>
+        <div class="flow-metric" :class="{ weak: !aiEnabled }">
+          <span>AI 增强</span>
+          <strong>{{ aiStatusLabel }}</strong>
+          <small>{{ aiStatusDetail }}</small>
         </div>
       </div>
     </section>
@@ -103,7 +123,7 @@
           :disabled="detailFetching"
           @click="startDetailFetch"
         >
-          <span aria-hidden="true">⌕</span>{{ detailFetching ? '正在启动补采...' : '补充正文与标签分析' }}
+          <span aria-hidden="true">⌕</span>{{ detailFetching ? '正在启动补采...' : '补充完整公开数据' }}
         </button>
       </div>
       <ul>
@@ -111,7 +131,7 @@
         <li v-for="warning in dataWarnings" :key="warning">{{ warning }}</li>
         <li v-for="item in weakInsights" :key="item.id">{{ item.title }}：{{ item.action }}</li>
         <li v-if="detailFetch?.enabled">
-          正文与标签补采：成功 {{ detailFetch.success_count || 0 }} / {{ detailFetch.requested_count || 0 }} 条，失败 {{ detailFetch.failed_count || 0 }} 条。
+          公开数据补采：详情成功 {{ detailFetch.success_count || 0 }} / {{ detailFetch.requested_count || 0 }} 条，失败 {{ detailFetch.failed_count || 0 }} 条。
         </li>
       </ul>
     </section>
@@ -175,12 +195,23 @@
     <section class="section-block">
       <div class="section-head">
         <div>
-          <span class="eyebrow">9 维分析</span>
-          <h3>原有分析不隐藏，改成可深挖模块</h3>
+          <span class="eyebrow">8 类诊断</span>
+          <h3>每个结论都标清数据来源和完成度</h3>
+          <p class="section-note">8 个交付维度在页面中展开为 9 个阅读模块，竞争定位作为辅助模块单独保留。</p>
         </div>
       </div>
+      <div class="dimension-summary-grid">
+        <article v-for="item in dimensionSummary" :key="item.key" :class="['dimension-summary-card', item.status]">
+          <div>
+            <strong>{{ item.label }}</strong>
+            <span>{{ item.status === 'ready' ? '数据可用' : '结论降级' }}</span>
+          </div>
+          <p>{{ item.finding }}</p>
+          <small>{{ item.sampleCount }} 个/条样本 · {{ item.sources }}</small>
+        </article>
+      </div>
       <div class="dimension-layout">
-        <div class="dimension-tabs" role="tablist" aria-label="9 维报告">
+        <div class="dimension-tabs" role="tablist" aria-label="分析报告模块">
           <button
             v-for="rt in reportTypes"
             :key="rt.key"
@@ -259,6 +290,8 @@
       </div>
     </section>
 
+    <DeliveryCenter :task-id="taskId" />
+
     <ReportFeedback :task-id="taskId" />
 
     <section class="export-row">
@@ -276,6 +309,7 @@ import { marked } from 'marked'
 import { defaultReportKey, reportTypes } from '../constants/reports'
 import { reportAPI, taskAPI } from '../api/client'
 import ReportFeedback from './ReportFeedback.vue'
+import DeliveryCenter from './DeliveryCenter.vue'
 
 const props = defineProps<{
   taskId: number
@@ -305,14 +339,47 @@ const evidenceNotes = computed(() => props.brief?.evidence_notes || [])
 const firstAvoid = computed(() => avoidActions.value[0])
 const strongestInsight = computed(() => strongInsights.value[0])
 const accountInitial = computed(() => String(summary.value.nickname || '账').slice(0, 1))
-const contentCoverageWeak = computed(() => (dataQuality.value.content_text_completeness || 0) < 0.5)
-const tagCoverageWeak = computed(() => (dataQuality.value.tag_completeness || 0) < 0.5)
+const contentCoverageWeak = computed(() => !dataQuality.value.content_analysis_ready)
+const tagCoverageWeak = computed(() => !dataQuality.value.tag_analysis_ready)
+const commentCoverageWeak = computed(() => !dataQuality.value.comment_analysis_ready)
+const mediaCoverageWeak = computed(() => !dataQuality.value.media_analysis_ready)
+const searchCoverageWeak = computed(() => !dataQuality.value.search_analysis_ready)
+const aiEnhancement = computed(() => props.brief?.ai_enhancement || {})
+const aiEnabled = computed(() => Boolean(aiEnhancement.value.enabled))
+const aiStatusLabel = computed(() => {
+  if (!aiEnabled.value) return '未启用'
+  return aiEnhancement.value.multimodal ? '多模态已介入' : '文本 AI 已介入'
+})
+const aiStatusDetail = computed(() => {
+  if (!aiEnabled.value) return aiEnhancement.value.message || '本次使用结构化规则分析，没有伪装成 AI 结果'
+  const model = aiEnhancement.value.model || '已配置模型'
+  const imageCount = aiEnhancement.value.image_sample_count || 0
+  return aiEnhancement.value.multimodal ? `${model}，读取 ${imageCount} 个代表视觉样本` : `${model}，只解释已核验文本证据`
+})
+
+const dimensionLabels: Record<string, string> = {
+  positioning_audience: '定位受众',
+  content_structure: '内容结构',
+  title_hook: '标题 Hook',
+  engagement_drivers: '互动归因',
+  growth_trajectory: '成长轨迹',
+  tag_search: '标签搜索',
+  commercial_signals: '商业信号',
+  action_plan: '行动建议',
+}
+const dimensionSummary = computed(() => Object.entries(props.brief?.eight_dimensions || {}).map(([key, value]: [string, any]) => ({
+  key,
+  label: dimensionLabels[key] || key,
+  status: value?.status === 'ready' ? 'ready' : 'limited',
+  finding: value?.findings?.[0] || value?.limits?.[0] || '当前没有足够数据形成稳定判断。',
+  sampleCount: value?.sample_count || 0,
+  sources: (value?.sources || []).slice(0, 2).join('、') || '来源待补充',
+})))
 
 const dataWarnings = computed(() => dataQuality.value.warnings || [])
 const canFetchDetails = computed(() => {
   if (detailFetching.value) return true
-  if (props.detailFetch?.enabled && props.detailFetch?.success_count > 0) return false
-  return (dataQuality.value.content_text_completeness || 0) < 0.5 || (dataQuality.value.tag_completeness || 0) < 0.5
+  return contentCoverageWeak.value || tagCoverageWeak.value || commentCoverageWeak.value || mediaCoverageWeak.value || searchCoverageWeak.value
 })
 
 const topTopics = computed(() => {
@@ -325,7 +392,7 @@ const topTopics = computed(() => {
 const quality = computed(() => props.quality || null)
 const qualityText = computed(() => {
   if (!quality.value) return '未生成质检'
-  return quality.value.passed ? '报告质量通过' : '报告需复查'
+  return quality.value.passed ? '校验通过' : '需复查'
 })
 const qualityMessages = computed(() => {
   const q = quality.value
@@ -348,9 +415,9 @@ const dimensionWarning = computed(() => {
   const label = activeReportLabel.value
   const matched = [...(props.brief?.insufficient_modules || [])].find((item: any) => label.includes(item.module.replace('与', '')))
   if (matched) return matched.impact
-  if (label.includes('标签')) return dataQuality.value.tag_completeness < 0.5 ? '标签数据不足，本模块只作弱参考。' : ''
-  if (label.includes('内容')) return dataQuality.value.content_text_completeness < 0.5 ? '正文数据不足，结构判断已降级。' : ''
-  if (label.includes('互动')) return dataQuality.value.comment_completeness < 0.5 ? '评论数据不足，互动归因只作弱参考。' : ''
+  if (label.includes('标签')) return !dataQuality.value.tag_analysis_ready ? '标签分层样本不足，本模块不输出 SEO 强建议。' : ''
+  if (label.includes('内容')) return !dataQuality.value.content_analysis_ready ? '正文分层样本不足，结构判断已降级。' : ''
+  if (label.includes('点赞')) return '本模块解释公开点赞分布，不推断用户动机或平台推荐机制。'
   return ''
 })
 
@@ -387,8 +454,8 @@ const detailFetchSummary = computed(() => {
 })
 const contentAnalysisStatus = computed(() => {
   if (!props.detailFetch?.enabled) return '当前主要基于主页列表数据'
-  if (contentCoverageWeak.value || tagCoverageWeak.value) return '已补采，但正文/标签覆盖不足，相关结论降级'
-  return '正文与标签覆盖达标，可进入结构分析'
+  if (canFetchDetails.value) return '已补采，但仍有公开数据模块不足，相关结论已降级'
+  return '正文、标签、评论、媒体与搜索样本均达到交付门槛'
 })
 
 function confidenceLabel(value: string) {
@@ -476,10 +543,10 @@ async function downloadShareHtml() {
 async function startDetailFetch() {
   detailFetching.value = true
   try {
-    await taskAPI.detailFetch(props.taskId, 25)
+    await taskAPI.detailFetch(props.taskId, 30)
     emit('refresh')
   } catch (e: any) {
-    alert(e.response?.data?.detail || e.message || '补采启动失败')
+    alert(e.response?.data?.detail || e.message || '公开数据补采启动失败')
   } finally {
     detailFetching.value = false
   }
@@ -917,6 +984,55 @@ async function startDetailFetch() {
   margin-top: 14px;
 }
 
+.dimension-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.dimension-summary-card {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.dimension-summary-card.limited {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.dimension-summary-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dimension-summary-card span,
+.dimension-summary-card small {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.dimension-summary-card.ready span {
+  color: #166534;
+}
+
+.dimension-summary-card.limited span {
+  color: #92400e;
+}
+
+.dimension-summary-card p {
+  min-height: 42px;
+  margin: 10px 0;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .dimension-tabs {
   display: flex;
   flex-direction: column;
@@ -1038,7 +1154,8 @@ async function startDetailFetch() {
   .insight-grid,
   .evidence-grid,
   .action-grid,
-  .data-flow-grid {
+  .data-flow-grid,
+  .dimension-summary-grid {
     grid-template-columns: 1fr;
   }
 

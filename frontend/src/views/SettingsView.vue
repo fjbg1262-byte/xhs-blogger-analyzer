@@ -5,7 +5,7 @@
     <div class="card" style="margin-bottom: 16px;">
       <h3 style="margin-bottom: 16px;">LLM 配置</h3>
       <p style="font-size: 13px; color: #8e8e93; margin-bottom: 16px;">
-        AI 增强功能需要配置模型 API Key。基础采集、分析和报告生成不依赖 AI。
+        你配置 API 后，可为客户生成内容解读与创作草稿；客户不用提供密钥。调用会将公开文字和客户目标发送到所选服务商，并产生 API 费用。基础采集与表格导出无需 AI。
       </p>
 
       <div class="form-group">
@@ -32,7 +32,7 @@
         <input v-model="llmModel" :placeholder="defaultModel" />
       </div>
 
-      <button @click="saveLlmConfig" class="btn btn-primary" :disabled="!llmApiKey">
+      <button @click="saveLlmConfig" class="btn btn-primary" :disabled="saving || (!llmApiKey && !hasKey)">
         {{ saving ? '保存中...' : '保存 LLM 配置' }}
       </button>
       <span v-if="llmSaved" style="margin-left: 12px; color: #065f46; font-size: 14px;">已保存</span>
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { cookieAPI, telemetryAPI } from '../api/client'
 import api from '../api/client'
 
@@ -138,6 +138,7 @@ const llmApiKey = ref('')
 const llmApiUrl = ref('')
 const llmModel = ref('')
 const presets = ref<Record<string, string>>({})
+const defaultModels = ref<Record<string, string>>({})
 const currentProvider = ref('')
 const currentModel = ref('')
 const hasKey = ref(false)
@@ -149,17 +150,8 @@ const telemetrySaving = ref(false)
 const telemetryPrivacySummary = ref<string[]>([])
 const appVersion = ref('')
 
-const defaultModel = computed(() => {
-  const m: Record<string, string> = {
-    openai: 'gpt-4o-mini',
-    deepseek: 'deepseek-chat',
-    kimi: 'moonshot-v1-8k',
-    qwen: 'qwen-plus',
-    glm: 'glm-4-flash',
-    claude: 'claude-sonnet-4-20250514',
-  }
-  return m[llmProvider.value] || ''
-})
+const defaultModel = computed(() => defaultModels.value[llmProvider.value] || '')
+watch(llmProvider, () => { llmApiUrl.value=presets.value[llmProvider.value] || ''; llmModel.value=defaultModel.value; llmApiKey.value=''; hasKey.value=false }, {flush:'sync'})
 
 function providerLabel(p: string) {
   const labels: Record<string, string> = {
@@ -179,6 +171,7 @@ async function loadLlmConfig() {
     const res = await api.get('/settings/llm')
     const d = res.data
     presets.value = d.presets || {}
+    defaultModels.value = d.default_models || {}
     llmProvider.value = d.provider || 'openai'
     llmApiUrl.value = d.api_url || ''
     llmModel.value = d.model || ''
@@ -195,17 +188,19 @@ async function saveLlmConfig() {
       llm_provider: llmProvider.value,
       llm_api_key: llmApiKey.value,
     }
-    if (llmApiUrl.value) body.llm_api_url = llmApiUrl.value
-    if (llmModel.value) body.llm_model = llmModel.value
+    body.llm_api_url = llmApiUrl.value
+    body.llm_model = llmModel.value
 
     await api.post('/settings/llm', body)
     llmSaved.value = true
     currentProvider.value = llmProvider.value
     currentModel.value = llmModel.value || defaultModel.value
-    hasKey.value = true
+    await loadLlmConfig()
+    llmApiKey.value = ''
     setTimeout(() => llmSaved.value = false, 2000)
   } catch (e) {
-    alert('保存失败')
+    const detail = (e as any).response?.data?.detail
+    alert(typeof detail === 'string' ? detail : '保存失败，请检查模型配置和网络。')
   } finally {
     saving.value = false
   }

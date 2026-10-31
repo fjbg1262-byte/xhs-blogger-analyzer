@@ -39,6 +39,8 @@ G = R.get('growth', {})
 TG = R.get('tags', {})
 C = R.get('commercial', {})
 TVB = R.get('top_vs_bottom', {})
+DIM = R.get('eight_dimensions', {})
+AI = R.get('ai_enhancement', {})
 TAG_HAS_DATA = bool(TG.get('top30') or TG.get('total_mentions', 0))
 
 nickname = P.get('nickname', '未知博主')
@@ -46,16 +48,19 @@ overall_avg = P.get('avg_likes', 0)
 overall_median = P.get('median_likes', 0)
 burst_threshold = max(overall_avg * 2, 1000)
 LOW_INFO_TOPIC_NAMES = {'其他/未分类', '其它/未分类', '未分类', '其他', '未归类观察', '日常随手记录'}
-CONTENT_TEXT_OK = Q.get('content_text_completeness', 0) >= 0.5
-TAG_OK = Q.get('tag_completeness', 0) >= 0.5
-COMMENT_OK = Q.get('comment_completeness', 0) >= 0.5
-TOPIC_OK = Q.get('topic_unclassified_pct', 0) <= 50
+CONTENT_TEXT_OK = Q.get('content_analysis_ready', Q.get('content_text_completeness', 0) >= 0.5)
+TAG_OK = Q.get('tag_analysis_ready', Q.get('tag_completeness', 0) >= 0.5)
+COMMENT_OK = Q.get('comment_analysis_ready', Q.get('comment_completeness', 0) >= 0.5)
+TAG_HAS_DATA = TAG_HAS_DATA and TAG_OK
+TOPIC_OK = Q.get('topic_unclassified_pct', 0) <= 35
 
 def is_low_info_topic(name):
     return any(token in str(name) for token in LOW_INFO_TOPIC_NAMES)
 
-def is_recommendable_pattern(data, min_count=3, min_lift=20):
-    return data.get('count', 0) >= min_count and data.get('vs_overall_pct', data.get('vs_baseline_pct', 0)) > min_lift
+def is_recommendable_pattern(data, min_count=5, min_lift=20):
+    avg_lift = data.get('vs_overall_pct', data.get('vs_baseline_pct', 0))
+    median_lift = data.get('vs_median_pct', 0)
+    return data.get('count', 0) >= min_count and avg_lift > min_lift and median_lift > 10
 
 def is_reliable_topic(name, data, min_count=5):
     if is_low_info_topic(name):
@@ -138,13 +143,16 @@ def discover_patterns(title_data):
             continue
         likes = [lk for _, lk in matched]
         avg = statistics.mean(likes)
+        median = statistics.median(likes)
         burst = len([lk for lk in likes if lk > burst_threshold])
         above_avg = len([lk for lk in likes if lk > overall_avg]) if overall_avg else 0
         found[pname] = {
             'count': len(matched),
             'pct': round(len(matched) / len(title_data) * 100, 1),
             'avg_likes': round(avg, 1),
+            'median_likes': median,
             'vs_baseline_pct': round((avg / overall_avg - 1) * 100, 1) if overall_avg else 0,
+            'vs_median_pct': round((median / overall_median - 1) * 100, 1) if overall_median else 0,
             'burst_count': burst,
             'burst_rate': round(burst / len(matched) * 100, 1),
             'above_avg_rate': round(above_avg / len(matched) * 100, 1),
@@ -169,6 +177,7 @@ def discover_formulas(title_data, patterns_dict):
                 continue
             likes = [lk for _, lk in matched]
             avg = statistics.mean(likes)
+            median = statistics.median(likes)
             burst = len([lk for lk in likes if lk > burst_threshold])
             name = f'{p1.split("（")[0]} + {p2.split("（")[0]}'
             top_note = max(matched, key=lambda x: x[1])
@@ -176,7 +185,9 @@ def discover_formulas(title_data, patterns_dict):
                 'count': len(matched),
                 'pct': round(len(matched) / len(title_data) * 100, 1),
                 'avg_likes': round(avg, 1),
+                'median_likes': median,
                 'vs_overall_pct': round((avg / overall_avg - 1) * 100, 1),
+                'vs_median_pct': round((median / overall_median - 1) * 100, 1) if overall_median else 0,
                 'burst_rate': round(burst / len(matched) * 100, 1),
                 'burst_count': burst,
                 'top': top_note[0],
@@ -199,6 +210,41 @@ def w(fname, content):
         f.write(content)
     print(f'  Generated: {fname}')
 
+def dimension_evidence_section(key):
+    dimension = DIM.get(key, {})
+    ai_item = (AI.get('dimensions') or {}).get(key, {}) if AI.get('enabled') else {}
+    if not dimension and not ai_item:
+        return ''
+    findings = dimension.get('findings', [])
+    sources = '、'.join(dimension.get('sources', [])) or '公开内容样本'
+    limits = dimension.get('limits', [])
+    text = f"""
+
+## 本维度的数据与证据
+
+- **状态**：{dimension.get('status', 'limited')}；置信度 {dimension.get('confidence', 'low')}
+- **样本**：{dimension.get('sample_count', 0)}
+- **数据来源**：{sources}
+"""
+    if findings:
+        text += '\n### 结构化观察\n\n' + '\n'.join(f'- {item}' for item in findings) + '\n'
+    if ai_item:
+        text += f"""
+
+### AI 增强解读
+
+{ai_item.get('summary', '')}
+
+{chr(10).join(f'- {item}' for item in ai_item.get('findings', []))}
+
+> AI 模型：{AI.get('model', '已配置模型')}；{'包含代表封面多模态观察' if AI.get('multimodal') else '本次为文本证据增强'}。引用笔记：{len(ai_item.get('evidence_note_ids', []))} 篇。
+"""
+    if limits or ai_item.get('limits'):
+        text += '\n### 解释边界\n\n' + '\n'.join(
+            f'- {item}' for item in (limits + ai_item.get('limits', []))
+        ) + '\n'
+    return text
+
 def classify_topic_emoji(cat, s):
     if s['burst_rate'] > 20: return '🔥'
     if s['avg_likes'] > overall_avg: return '📈'
@@ -210,10 +256,12 @@ def classify_topic_emoji(cat, s):
 
 top_cats = sorted(T.items(), key=lambda x: x[1]['count'], reverse=True) if T else []
 main_topics = [c for c, d in top_cats if is_reliable_topic(c, d)][:3]
-if main_topics:
-    audience_desc = '、'.join(main_topics) + '关注者'
-else:
-    audience_desc = '该账号内容受众（当前主题分类覆盖不足，暂不细分人群）'
+audience_signal_count = R.get('audience_signals', {}).get('comment_count', 0)
+audience_desc = (
+    f'已结合 {audience_signal_count} 条代表评论观察关注问题与需求表达；不等同于粉丝人口画像'
+    if audience_signal_count else
+    '缺少评论正文与后台数据，不推断核心受众'
+)
 
 style_parts = []
 deduced_style = False
@@ -238,16 +286,16 @@ for sp_name, sp_data in sorted(dynamic_patterns.items(), key=lambda x: x[1]['vs_
             style_parts.append(f'偏好数据化表达（使用率{sp_data["pct"]}%）')
             deduced_style = True
 if not deduced_style:
-    style_parts.append('理性客观、信息密度高')
+    style_parts.append('未检测到达到门槛的稳定标题表达特征')
 
 domain = main_topics[0] if main_topics else '内容观察'
-positioning = f'{domain}领域内容创作者'
+positioning = f'公开内容主要覆盖：{domain}'
 if T and TOPIC_OK:
     top_roi = sorted(T.items(), key=lambda x: x[1]['avg_likes'], reverse=True)
     if top_roi:
         for tc, td in top_roi:
             if is_reliable_topic(tc, td):
-                positioning += f'，以{tc}内容为特色'
+                positioning += f'；「{tc}」为较高表现候选方向'
                 break
 
 dynamic_style_lines = ''
@@ -268,13 +316,13 @@ r00 = f"""# 博主画像卡片：{nickname}
 |------|------|
 | 昵称 | {nickname} |
 | 内容总量 | {P.get('total_notes','?')} 篇 |
-| 视频占比 | {P.get('video_count',0)} ({CT.get('video',{}).get('pct','?')}%) |
+| 视频占比 | {P.get('video_count',0)} ({CT.get('video',{}).get('pct',0)}%) |
 | 创作周期 | ~{G.get('months_active', '?')} 个月 |
 | 均赞/中位数 | {P.get('avg_likes','?')} / {P.get('median_likes','?')} |
 | 最高赞 | {P.get('max_likes','?')} |
 | 标准差 | {P.get('std_likes','?')}（{'波动极大，爆款驱动型' if P.get('std_likes',0) > P.get('avg_likes',1) else '分布相对集中'}） |
 
-## 用户画像（从内容推断）
+## 受众信息边界
 
 | 维度 | 特征 |
 |------|------|
@@ -283,19 +331,20 @@ r00 = f"""# 博主画像卡片：{nickname}
 | 内容消费场景 | 当前缺少用户行为数据，暂不推断消费场景 |
 | 受众水平 | 仅可从标题和选题粗略观察，暂不做确定判断 |
 
-## 人设要素
+## 可观察表达要素
 
 | 要素 | 表现 |
 |------|------|
 | 语言风格 | {''.join(style_parts)} |
-| 内容价值观 | 需结合正文进一步判断 |
-| 差异化定位 | 内容覆盖 {'、'.join(main_topics[:3]) if main_topics else '多个方向（当前主题分类不足）'} |
-| 人格化标签 | {nickname} |
+| 内容价值观 | 需结合正文和创作者自述进一步判断 |
+| 内容覆盖 | {'、'.join(main_topics[:3]) if main_topics else '多个方向（当前主题分类不足）'} |
+| 人设判断 | 缺少评论、主页自述和长期对标，不做确定判断 |
 
 ### 实际标题特征表现
 {dynamic_style_lines}
 """
 
+r00 += dimension_evidence_section('positioning_audience')
 w('00_博主画像卡片.md', r00)
 
 # ============================================================
@@ -322,7 +371,7 @@ r01 = f"""# 内容结构分析
 if T:
     for cat, s in sorted(T.items(), key=lambda x: x[1]['avg_likes'], reverse=True):
         emoji = classify_topic_emoji(cat, s)
-        cat_type = '主力类型' if s['count'] > 30 else '补充类型' if s['count'] > 10 else '尝试型'
+        cat_type = '主要内容' if s['count'] >= max(20, P.get('total_notes', 0) * 0.25) else '稳定支线' if s['count'] >= 8 else '探索样本'
         avg_assess = '显著高于均值' if s['avg_likes'] > overall_avg * 1.2 else '接近均值' if s['avg_likes'] > overall_avg * 0.8 else '低于均值'
         median_assess = '分布均匀' if s['median_likes'] > overall_median else '头尾分化'
         burst_assess = '高产爆款🔥' if s['burst_rate'] > 20 else '偶尔出爆款' if s['burst_rate'] > 10 else '爆款稀缺'
@@ -343,14 +392,10 @@ if T:
             r01 += "**策略建议**: 该类属于未充分归类内容，只用于观察样本构成，不作为选题策略依据。\n\n"
         elif not is_reliable_topic(cat, s):
             r01 += f"**策略建议**: 样本量或分类置信度不足，当前只作观察，不建议据此增加发布占比。\n\n"
-        elif s['burst_rate'] > 20 and s['count'] > 20 and s['avg_likes'] >= overall_avg * 1.1:
-            r01 += f"**策略建议**: 主力赛道。{s['count']}篇高产 + {s['burst_rate']}%爆款率，是账号核心基本盘。建议保持投入。\n\n"
-        elif s['avg_likes'] > overall_avg * 1.5 and s['count'] >= 5:
-            r01 += f"**策略建议**: 高ROI类型——仅{s['count']}篇产出均赞{s['avg_likes']}（整体均值{round(overall_avg)}），是拉升均赞的关键杠杆。建议增加占比。\n\n"
-        elif s['burst_rate'] > 20 and s['count'] >= 5:
-            r01 += f"**策略建议**: 小而美的爆款赛道。产量低（{s['count']}篇）但爆款率{s['burst_rate']}%，值得作为差异化内容定期输出。\n\n"
+        elif s['count'] >= 8 and s['avg_likes'] >= overall_avg * 1.15 and s.get('median_likes', 0) >= overall_median * 1.1:
+            r01 += f"**验证建议**: 该方向有 {s['count']} 篇样本，均值与中位数都高于账号基线，可优先连续测试 3 篇；这仍是相关性线索，不证明主题单独造成高点赞。\n\n"
         elif s['avg_likes'] < overall_avg * 0.7:
-            r01 += f"**策略建议**: 互动效率偏低（均赞{s['avg_likes']}，为整体均值{round(overall_avg)}的{round(s['avg_likes']/overall_avg*100)}%），建议控制发布比例或优化内容形式。\n\n"
+            r01 += f"**验证建议**: 当前均赞低于账号基线，但需结合中位数与具体样本复核；先调整一个变量做 3 篇测试，不直接停更该方向。\n\n"
         elif s['count'] < 5:
             r01 += "**策略建议**: 样本量较小（<5篇），结论需谨慎参考。\n\n"
         else:
@@ -396,11 +441,11 @@ if all_titles:
 """
         for kw, titles in sorted(series_detected, key=lambda x: len(x[1]), reverse=True)[:6]:
             r01 += f"| 「{kw}」系列 | {len(titles)} 篇 | {titles[0][:40]} |\n"
-        r01 += "\n**系列化内容有助于形成用户预期和长尾流量，建议持续做系列化。**\n\n"
+        r01 += "\n以上只说明标题中存在重复系列词。是否有利于用户预期或搜索表现，需要后续发布测试验证。\n\n"
     else:
         r01 += """## 四、系列化内容
 
-未检测到明显的系列化内容（基于关键词聚类）。建议有意识地规划系列选题以沉淀粉丝预期。
+未检测到明显的系列化标题词（基于关键词聚类）。可把系列化作为待测试方案，而不是账号既有规律。
 
 """
 
@@ -413,6 +458,7 @@ r01 += f"""## 五、内容密度
 | 周均发布 | {round(P.get('total_notes',0)/max(G.get('months_active',1),1)/4, 1)} 篇 |
 """
 
+r01 += dimension_evidence_section('content_structure')
 w('01_内容结构分析.md', r01)
 
 # ============================================================
@@ -422,7 +468,7 @@ w('01_内容结构分析.md', r01)
 feat_rows = ''
 if dynamic_patterns:
     for pname, pdata in sorted(dynamic_patterns.items(), key=lambda x: x[1]['avg_likes'], reverse=True):
-        effect = '✅ 有效' if pdata['vs_baseline_pct'] > 5 else ('❌ 偏低' if pdata['vs_baseline_pct'] < -10 else '→ 中性')
+        effect = '可优先测试' if is_recommendable_pattern(pdata) else ('谨慎测试' if pdata['count'] >= 5 and pdata['vs_baseline_pct'] < -30 and pdata.get('vs_median_pct', 0) < -10 else '仅观察')
         feat_rows += f"| {pname} | {pdata['count']} | {pdata['pct']}% | {pdata['avg_likes']} | {pdata['vs_baseline_pct']:+.1f}% | {effect} |\n"
 elif TA:
     for fn, d in TA.items():
@@ -442,11 +488,11 @@ title_findings = []
 if dynamic_patterns:
     sorted_p = sorted(dynamic_patterns.items(), key=lambda x: x[1]['avg_likes'], reverse=True)
     best_pattern = sorted_p[0] if sorted_p else None
-    if best_pattern and best_pattern[1]['vs_baseline_pct'] > 10:
-        title_findings.append(f"**{best_pattern[0]}** 是最有效的标题特征，使用率 {best_pattern[1]['pct']}%，均赞 {best_pattern[1]['avg_likes']}，vs 基准 {best_pattern[1]['vs_baseline_pct']:+.1f}%")
+    if best_pattern and is_recommendable_pattern(best_pattern[1]):
+        title_findings.append(f"**{best_pattern[0]}** 达到测试门槛：{best_pattern[1]['count']} 篇，均赞相对基线 {best_pattern[1]['vs_baseline_pct']:+.1f}%，中位数相对基线 {best_pattern[1]['vs_median_pct']:+.1f}%")
 
     most_used = sorted(dynamic_patterns.items(), key=lambda x: x[1]['pct'], reverse=True)[0]
-    title_findings.append(f"**{most_used[0]}** 使用频率最高（{most_used[1]['pct']}%），均赞 {most_used[1]['avg_likes']}，{'效果良好' if most_used[1]['vs_baseline_pct'] > 0 else '表现一般'}")
+    title_findings.append(f"**{most_used[0]}** 使用频率最高（{most_used[1]['pct']}%）；高频只说明写作习惯，不自动等于有效。")
 
     worst = sorted(dynamic_patterns.items(), key=lambda x: x[1]['avg_likes'])[0]
     if worst[1]['avg_likes'] < overall_avg * 0.7:
@@ -460,7 +506,8 @@ if formulas_to_show:
         formula_deep_dives += f"""### {fname}
 
 - **使用频次**: {fdata['count']} 次 ({fdata['pct']}%)
-- **均赞**: {fdata['avg_likes']}（{direction}整体均值 {abs(fdata['vs_overall_pct'])}%）
+- **均赞 / 中位数**: {fdata['avg_likes']} / {fdata.get('median_likes', 0)}
+- **相对基线**: 均值 {fdata['vs_overall_pct']:+.1f}% / 中位数 {fdata.get('vs_median_pct', 0):+.1f}%
 - **爆款率**: {fdata['burst_rate']}%
 - **最佳标题**: {fdata.get('top', '')[:60]}
 
@@ -505,35 +552,36 @@ else:
     r02 += "标题公式需要更多数据样本才能提取有意义的模式。\n\n"
 
 if CONTENT_TEXT_OK:
-    r02 += """## 四、正文结构分析
+    r02 += f"""## 四、正文结构分析
 
 ### Hook 模式（基于已采集正文样本）
 
-正文覆盖率已达到分析门槛，可结合爆款和普通样本继续拆解 Hook、正文结构和 CTA。
+已采集 {Q.get('content_sample_count', 0)} 篇有效正文，在本次分层详情样本中覆盖 {round(Q.get('content_sample_completeness', 0) * 100, 1)}%。正文只做样本内结构观察，不推断全部历史内容。
 
 ### 正文结构模板
 
-后续版本将基于真实正文样本生成账号专属模板。
+当前版本不硬套通用模板。建议在证据样本中复核开头承诺、主体信息和结尾动作，再做 3 篇受控测试。
 """
 else:
     r02 += f"""## 四、正文结构分析
 
-正文覆盖率为 {round(Q.get('content_text_completeness', 0) * 100, 1)}%，低于 50% 分析门槛。本报告不输出 Hook、正文结构模板或 CTA 策略，避免把通用模板误写成该账号规律。
+有效正文为 {Q.get('content_sample_count', 0)} 篇，未达到本次所需的 {Q.get('detail_required_count', 0)} 篇分层样本门槛。本报告不输出 Hook、正文结构模板或 CTA 策略。
 """
 
+r02 += dimension_evidence_section('title_hook')
 w('02_标题与文案分析.md', r02)
 
 # ============================================================
-# 03_互动归因分析.md
+# 03_公开点赞表现分析.md
 # ============================================================
 
-r03 = f"""# 互动归因分析
+r03 = f"""# 公开点赞表现分析
 
 ## 一、互动分布全景
 
 | 指标 | 数值 |
 |------|------|
-| 总互动量 | {P.get('total_likes_sum','?')} |
+| 公开点赞总数 | {P.get('total_likes_sum','?')} |
 | 平均点赞 | {P.get('avg_likes','?')} |
 | 中位数 | {P.get('median_likes','?')} |
 | 标准差 | {P.get('std_likes','?')}（{'离散度高，爆款驱动' if P.get('std_likes',0) > P.get('avg_likes',1) else '分布较集中'}） |
@@ -549,13 +597,32 @@ r03 = f"""# 互动归因分析
 | 前 5 篇贡献 | {E.get('top5_share','?')}% 的点赞 |
 | 后 50% 笔记贡献 | 仅 {E.get('bottom50pct_share','?')}% 的点赞 |
 
-**解读**: {'这是一个典型的"爆款驱动型"账号——少数笔记贡献了绝大多数互动。成功的关键不是篇篇爆款，而是持续生产"可能爆款"的内容。' if E.get('pareto_80pct_pct', 100) < 35 else '内容互动分布相对均匀，说明账号具备稳定输出的能力，不依赖单篇爆款。'}
+**解读**: {'公开点赞集中在少数笔记，复盘时必须同时查看头部样本和账号中位数。' if E.get('pareto_80pct_pct', 100) < 35 else '公开点赞分布相对均匀，单篇异常值对整体判断的影响较小。'}
 
 """
 
 if TVB:
     top_ratio = round(TVB['top20']['avg_text_length'] / max(TVB['bot20']['avg_text_length'], 1), 1)
-    r03 += f"""## 三、爆款 vs 普通两极对比
+    tag_ratio = round(TVB['top20']['avg_tag_count'] / max(TVB['bot20']['avg_tag_count'], 1), 1)
+    date_gap = round(TVB['top20']['has_date_ratio'] - TVB['bot20']['has_date_ratio'], 1)
+    observed = []
+    if top_ratio >= 1.2:
+        observed.append(f"高表现详情样本的正文平均更长（{top_ratio} 倍），可作为待验证线索，不能据此认定长正文导致高赞。")
+    elif top_ratio <= 0.8:
+        observed.append(f"高表现详情样本的正文平均更短（{top_ratio} 倍），可测试更紧凑的表达，但不能据此认定短正文导致高赞。")
+    else:
+        observed.append(f"两组正文长度接近（{top_ratio} 倍），当前没有明显长度线索。")
+    if tag_ratio >= 1.2 or tag_ratio <= 0.8:
+        observed.append(f"两组平均标签数存在差异（{tag_ratio} 倍），只说明样本相关性，不代表标签数量带来流量。")
+    else:
+        observed.append("两组平均标签数接近，当前没有明显数量线索。")
+    if abs(date_gap) >= 10:
+        observed.append(f"两组含日期比例相差 {abs(date_gap)} 个百分点，只作样本观察，不推断推荐机制。")
+    else:
+        observed.append("两组含日期比例接近，当前没有明显时效性线索。")
+    r03 += f"""## 三、高表现 vs 低表现详情样本对比
+
+本节仅比较已成功采集详情的分层样本：高表现组 {TVB['top20'].get('sample_count', 0)} 篇，低表现组 {TVB['bot20'].get('sample_count', 0)} 篇；可靠度 {TVB.get('reliability', 'low')}。
 
 | 对比维度 | 爆款 Top 20 | 普通 Bottom 20 | 差异倍数 |
 |---------|------------|---------------|---------|
@@ -564,16 +631,14 @@ if TVB:
 | 平均正文长度 | {TVB['top20']['avg_text_length']:.0f} 字 | {TVB['bot20']['avg_text_length']:.0f} 字 | {top_ratio}x |
 | 含日期比例 | {TVB['top20']['has_date_ratio']}% | {TVB['bot20']['has_date_ratio']}% | — |
 
-**关键发现**:
-- 爆款笔记的正文长度是普通笔记的 {top_ratio} 倍——深度内容更易引爆
-- 标签数量差异不大，关键在于标签质量而非数量
-- 含日期的笔记在爆款中比例更高，时效性内容更容易获得推荐
+**样本内观察**:
+{chr(10).join(f'- {item}' for item in observed)}
 
 """
 else:
     r03 += """## 三、爆款 vs 普通两极对比
 
-*正文内容数据未采集（需要 contents.json），无法进行爆款 vs 普通的正文对比分析。*
+*高表现组或低表现组的有效详情样本少于 3 篇，本次不做正文和标签对比，避免把缺失数据当成零。*
 
 """
 
@@ -590,131 +655,44 @@ r03 += f"""## 四、互动集中度指数
 | Top 20% 笔记 | {E.get('top20pct_share','?')}% |
 | 底部 50% 笔记 | {E.get('bottom50pct_share','?')}% |
 
-## 五、互动归因小结
+## 五、点赞表现小结
 """
 
 if CONTENT_TEXT_OK or COMMENT_OK:
-    r03 += f"""当前可结合已采集正文/评论继续判断互动归因。初步看，互动高度集中，建议优先复盘 Top 样本的选题对象、标题承诺和内容结构。
+    r03 += f"""当前可结合已采集正文样本观察关联特征。建议优先复盘高赞样本的选题对象、标题承诺和内容结构，并用后续 3 篇内容验证；本报告不把相关性写成因果。
 """
 else:
-    r03 += """当前只有点赞、标题、发布时间等列表数据，缺少正文和评论。因此本节只确认“互动是否集中”，不对爆款原因做确定排序，也不推断用户评论动机。
+    r03 += """当前只有点赞、标题、发布时间等列表数据，缺少足够正文和评论。因此本节只确认“点赞是否集中”，不对高赞原因做确定排序，也不推断用户动机。
 """
 
+r03 += dimension_evidence_section('engagement_drivers')
 w('03_互动归因分析.md', r03)
 
 # ============================================================
-# 04_成长轨迹分析.md
+# 04_发布与公开表现轨迹.md
 # ============================================================
 
 bursts_table = ''
 for b in G.get('top_bursts', [])[:15]:
     bursts_table += f"| {b['date']} | {b['title'][:50]} | {b['likes']} | {b['ratio_to_avg']}x |\n"
 
-bursts = G.get('top_bursts', [])
+monthly_rows = ''
+for row in G.get('monthly_stats', []):
+    monthly_rows += f"| {row.get('month')} | {row.get('count')} | {row.get('median_likes')} | {row.get('avg_likes')} | {row.get('max_likes')} |\n"
 
-# Data-driven growth phase descriptions
-monthly_ma = G.get('monthly_avg_likes', {})
-sorted_months = sorted(monthly_ma.keys())
-phase_desc_1 = ''
-phase_desc_2 = ''
-phase_desc_3 = ''
-phase_desc_4 = ''
+monthly_stats = G.get('monthly_stats', [])
+trajectory_note = '时间样本不足，当前只展示可读取的发布记录。'
+if len(monthly_stats) >= 3:
+    split = max(1, len(monthly_stats) // 3)
+    early = monthly_stats[:split]
+    recent = monthly_stats[-split:]
+    early_median = statistics.median([m.get('median_likes', 0) for m in early])
+    recent_median = statistics.median([m.get('median_likes', 0) for m in recent])
+    if early_median > 0:
+        delta = round((recent_median / early_median - 1) * 100, 1)
+        trajectory_note = f"最近时段的月度点赞中位数相对早期时段 {delta:+.1f}%。这是公开笔记表现变化，不代表粉丝或曝光增长。"
 
-if sorted_months and bursts:
-    first_month_val = monthly_ma.get(sorted_months[0], 0)
-    first_burst = bursts[0]
-    peak_month = max(monthly_ma.items(), key=lambda x: x[1]) if monthly_ma else ('', 0)
-
-    # Phase 1: Cold start
-    p1_months = sorted_months[:max(3, len(sorted_months)//5)]
-    p1_avg = round(statistics.mean([monthly_ma[m] for m in p1_months])) if len(p1_months) > 0 else 0
-    p1_range = f'{p1_months[0]} ~ {p1_months[-1]}' if len(p1_months) >= 2 else (p1_months[0] if p1_months else '?')
-
-    early_burst_in_p1 = first_burst.get('date', '')[:7] == p1_months[0] if p1_months else False
-    fb_likes = first_burst.get('likes', 0)
-    early_desc = f'首月即出现爆款（{fb_likes}赞）' if early_burst_in_p1 else '以基础内容积累为主，尚无爆款'
-
-    phase_desc_1 = f"""### 阶段 1: 冷启动期（{p1_range}）
-
-- **内容特征**: 早期以基础评测和工具分享为主，方向尚在摸索
-- **互动表现**: 月均点赞约 {p1_avg}，{early_desc}
-- **产出节奏**: 初步建立更新习惯"""
-
-    # Phase 2: Breakthrough
-    big_burst = None
-    for b in bursts:
-        if b.get('ratio_to_avg', 0) > 5:
-            big_burst = b
-            break
-    if not big_burst:
-        big_burst = bursts[0] if bursts else None
-
-    if big_burst:
-        phase_desc_2 = f"""### 阶段 2: 定位确立期（~{big_burst['date'][:7]}）
-
-- **触发事件**: 「{big_burst['title'][:50]}」成为爆款（{big_burst['likes']} 赞，{big_burst['ratio_to_avg']}x 均值）
-- **内容特征**: {'评测类内容占比提升' if T.get('AI模型/产品评测',{}).get('count',0) > 50 else '内容方向逐渐聚焦'}，形成固定更新节奏
-- **互动跃迁**: 均赞站上 {round(big_burst['likes']/big_burst.get('ratio_to_avg',1))} 量级
-- **IP 确立**: 通过持续输出建立领域认知"""
-    else:
-        phase_desc_2 = ''
-
-    # Phase 3: Growth surge
-    if peak_month[0] and peak_month[1] > p1_avg * 1.3:
-        peak_idx = sorted_months.index(peak_month[0]) if peak_month[0] in sorted_months else len(sorted_months)//2
-        p3_months = sorted_months[max(0, peak_idx-2):min(len(sorted_months), peak_idx+3)]
-        p3_range = f'{p3_months[0]} ~ {p3_months[-1]}'
-        p3_content_desc = f'形成"AI评测 + 教程 + 观点"内容矩阵' if T.get('教程/干货',{}).get('count',0) > 15 else f'以{T.get("AI模型/产品评测",{}).get("count",0) if T.get("AI模型/产品评测") else 0}篇评测覆盖热门话题'
-        p3_burst_desc = f'爆款频出（共{G.get("burst_count",0)}篇）' if G.get('burst_count',0) > 15 else f'最高赞达{max(b.get("likes",0) for b in bursts)}'
-
-        phase_desc_3 = f"""### 阶段 3: 增长爆发期（{p3_range}）
-
-- **核心表现**: 月均点赞达 {round(peak_month[1])}，为历史峰值
-- **内容结构**: {p3_content_desc}
-- **爆款态势**: {p3_burst_desc}
-- **内容形态**: {'持续深耕图文（图文占比' + str(normal.get('pct',0)) + '%）' if normal.get('pct',0) > 50 else '图文视频并重'}"""
-    else:
-        phase_desc_3 = ''
-
-    # Phase 4: Maturity
-    recent = sorted_months[-3:] if len(sorted_months) >= 3 else sorted_months[-min(len(sorted_months), 1):]
-    if recent:
-        recent_avg = round(statistics.mean([monthly_ma[m] for m in recent]))
-        recent_range = f'{recent[0]} ~ {recent[-1]}' if len(recent) >= 2 else recent[0]
-        monthly_count = round(P.get('total_notes',0)/max(G.get('months_active',1),1)) if P.get('total_notes') else 0
-        recent_stable = '均赞趋于稳定' if max(monthly_ma[m] for m in recent) - min(monthly_ma[m] for m in recent) < 200 else '均赞仍有波动'
-        comm_signal = f'检测到{C.get("detected_count",0)}篇商业内容（占{C.get("detected_pct",0)}%）' if C.get('detected_count',0) > 0 else '基本无商业内容，以自然增长为主'
-
-        phase_desc_4 = f"""### 阶段 4: 成熟运营期（{recent_range}）
-
-- **运营状态**: 稳定更新（月均~{monthly_count}篇）
-- **互动表现**: 月均点赞约 {recent_avg}，{recent_stable}
-- **商业化信号**: {comm_signal}
-- **增长评估**: {'均赞增长放缓，需新爆款破局' if max(monthly_ma[m] for m in recent) < peak_month[1] * 0.8 and peak_month[1] > 0 else '均赞维持健康水平'}"""
-
-# Fallback if data insufficient
-if not phase_desc_1:
-    phase_desc_1 = """### 阶段 1: 冷启动期
-
-- **内容特征**: 内容定位探索阶段
-- **互动表现**: 均赞较低"""
-if not phase_desc_2:
-    phase_desc_2 = """### 阶段 2: 定位确立期
-
-- **触发事件**: 首条爆款出现
-- **内容特征**: 内容方向逐渐聚焦"""
-if not phase_desc_3:
-    phase_desc_3 = """### 阶段 3: 增长爆发期
-
-- **内容特征**: 形成稳定的内容结构
-- **互动表现**: 均赞显著提升"""
-if not phase_desc_4:
-    phase_desc_4 = """### 阶段 4: 成熟运营期
-
-- **状态**: 进入稳定更新节奏
-- **互动表现**: 均赞稳定"""
-
-r04 = f"""# 成长轨迹分析
+r04 = f"""# 发布与公开表现轨迹
 
 ## 一、时间线总览
 
@@ -726,15 +704,13 @@ r04 = f"""# 成长轨迹分析
 | 总篇数 | {P.get('total_notes','?')} |
 | 月均发布 | {round(P.get('total_notes',0)/max(G.get('months_active',1),1), 1)} 篇 |
 
-## 二、成长阶段划分
+## 二、逐月发布与点赞表现
 
-{phase_desc_1}
+| 月份 | 发布数 | 点赞中位数 | 平均点赞 | 单月最高 |
+|------|-------|-----------|---------|---------|
+{monthly_rows or '| 暂无 | 0 | 0 | 0 | 0 |'}
 
-{phase_desc_2}
-
-{phase_desc_3}
-
-{phase_desc_4}
+**时段观察**: {trajectory_note}
 
 ## 三、关键转折点
 
@@ -742,10 +718,7 @@ r04 = f"""# 成长轨迹分析
 |------|------|------|------------|
 {bursts_table}
 
-**趋势解读**:
-- 共检测到 {G.get('burst_count', 0)} 篇爆款笔记（>均赞2倍）
-- {'爆款频次较高，说明粉丝基础和传播力在持续增长' if G.get('burst_count', 0) > 20 else '爆款分布较为零散，尚未形成稳定的爆款节奏'}
-- {'早期爆款和后期爆款的差距表明受众规模在扩大' if bursts and len(bursts) > 5 else '爆款表现相对稳定'}
+**说明**: 上表列出相对全账号均赞较高的公开笔记，便于回看选题和标题；不能据此推断账号处于冷启动、增长或成熟阶段。
 
 ## 四、互动趋势
 
@@ -754,8 +727,11 @@ r04 = f"""# 成长轨迹分析
 | 总爆款数 | {G.get('burst_count', 0)} 篇 |
 | 首月 | {G.get('first_month', '?')} |
 | 末月 | {G.get('last_month', '?')} |
+
+> {G.get('scope_note', '这里只观察公开笔记的发布与点赞变化，不代表粉丝增长、曝光增长或账号后台流量变化。')}
 """
 
+r04 += dimension_evidence_section('growth_trajectory')
 w('04_成长轨迹分析.md', r04)
 
 # ============================================================
@@ -764,7 +740,7 @@ w('04_成长轨迹分析.md', r04)
 if TAG_HAS_DATA:
     tag_rows = ''
     for i, t in enumerate(TG['top30'][:20]):
-        tag_type = '核心标签' if t['count'] > 10 else '常用标签' if t['count'] > 5 else '场景标签'
+        tag_type = '高频样本词' if t['count'] > 10 else '重复样本词' if t['count'] > 5 else '长尾样本词'
         tag_rows += f"| {i+1} | {t['tag']} | {t['count']} | {tag_type} |\n"
 
     core_tags = [t['tag'] for t in TG['top30'][:5]]
@@ -777,7 +753,9 @@ if TAG_HAS_DATA:
 |------|------|
 | 唯一标签总数 | {TG.get('total_unique', 0)} 个 |
 | 标签总引用 | {TG.get('total_mentions', 0)} 次 |
-| 样本笔记数 | ~{P.get('total_notes', 0)} 篇 |
+| 详情样本数 | {TG.get('detail_sample_count', Q.get('detail_sample_count', 0))} 篇 |
+| 有标签样本 | {TG.get('sample_note_count', Q.get('tag_sample_count', 0))} 篇 |
+| 详情样本内覆盖 | {TG.get('sample_coverage_pct', round(Q.get('tag_sample_completeness', 0) * 100, 1))}% |
 
 ## 二、高频标签 TOP 20
 
@@ -785,33 +763,33 @@ if TAG_HAS_DATA:
 |------|------|---------|------|
 {tag_rows}
 
-## 三、标签组合策略
+## 三、标签与搜索表达观察
 
-### 核心固定组合（高频标签）
+### 高频标签样本
 ```
 {' · '.join(['#' + t for t in core_tags])}
 ```
 
-### 标签类型分布
-- **核心标签**: 高频固定使用，建立领域关联
-- **场景标签**: 低频但精准，匹配搜索意图
-- **内容标签**: 与具体笔记主题相关
+这些标签只代表已采集详情样本中的使用频次，不代表平台搜索量或关键词热度。
 
-### 标签策略建议
-1. 固定标签组合保持 {len(core_tags)} 个核心标签持续使用
-2. 每篇根据内容增加 2-3 个场景/长尾标签
-3. 避免使用事件限定标签（如活动名称），搜索量极低
+### 下一轮测试建议
+1. 从高频词中选 1-2 个与内容真正一致的表达，不机械复制整组标签。
+2. 标题、正文关键词与标签保持语义一致，一次只测试一套表达。
+3. 连续记录至少 3 篇新内容的公开表现，再判断是否保留。
+
+> {TG.get('source_scope', '')}
 """
 else:
     r05 = """# 标签与 SEO 分析
 
-*标签数据需要采集笔记正文内容（tags 字段）才能分析。当前仅采集了笔记列表数据，缺少正文标签。*
+*有效标签详情样本未达到本次分析门槛，因此不输出标签组合或 SEO 策略。*
 
 ## 如何获取标签数据
 
-在 scrape 步骤之后，需要额外采集每篇笔记的详情页，提取 tags 字段。
+点击“补充正文与标签分析”，系统会按高赞、低赞、中位、近期和主题分层补采；达到门槛后再生成样本内观察。
 """
 
+r05 += dimension_evidence_section('tag_search')
 w('05_标签与SEO分析.md', r05)
 
 # ============================================================
@@ -821,7 +799,6 @@ if C:
     organic_avg = C.get('avg_likes_organic', 0)
     commercial_avg = C.get('avg_likes_commercial', 0)
     ratio = round(commercial_avg / max(organic_avg, 1) * 100, 1)
-    is_early = C.get('detected_pct', 100) < 5
     detected_count = C.get('detected_count', 0)
     detected_pct = C.get('detected_pct', 0)
 
@@ -840,6 +817,22 @@ if C:
 
 当前只能说明：在标题和列表元数据中未检测到明确商单/推广信号。由于没有正文、评论、置顶链接和商品组件数据，本报告不判断真实商业化阶段，也不评估商业内容表现。
 """
+    elif not C.get('comparison_ready'):
+        titles = '、'.join(C.get('detected_titles', [])[:5]) or '无'
+        r06 = f"""# 商业化信号观察
+
+## 一、检测结果
+
+在公开标题和已采集正文中检测到 {detected_count} 篇可能含合作/推广表达的样本，占 {detected_pct}%。代表标题：{titles}。
+
+样本少于 5 篇，不能稳定比较商业样本与其他内容，也不能判断商业化阶段、收入、转化或粉丝接受度。
+
+## 二、交付建议
+
+如客户关心商业化，请人工复核上述样本，并补充店铺、合作标记、置顶内容或客户提供的后台信息；在没有这些证据前，本报告只给信号清单。
+
+> {C.get('signal_scope', '')}
+"""
     else:
         r06 = f"""# 商业化分析
 
@@ -848,41 +841,17 @@ if C:
 | 指标 | 数值 | 评估 |
 |------|------|------|
 | 检测到的商业内容 | {detected_count} 篇 | {detected_pct}% |
-| 商业内容均赞 | {commercial_avg} | {'高于自然内容，选品质量高' if commercial_avg > organic_avg else '低于自然内容'} |
+| 商业信号样本均赞 | {commercial_avg} | 公开点赞样本值 |
 | 自然内容均赞 | {organic_avg} | 基准线 |
-| 商业 vs 自然差距 | {ratio}% | {'商业内容表现优于自然内容' if commercial_avg > organic_avg else '商业内容尚未明显影响互动质量' if ratio > 70 else '商业内容对互动有明显损耗'} |
+| 信号样本 / 其他样本 | {ratio}% | 相关性观察，不代表商业内容造成变化 |
 
-## 二、变现路径识别
+## 二、样本内观察
 
-### 路径 1: 品牌合作/广告
-- **状态**: {'存在一定比例的品牌合作' if detected_count > 5 else '商业内容较少，以自然内容为主'}
-- **表现**: 商业内容均赞 {commercial_avg}，{'高于自然内容' if commercial_avg > organic_avg else '低于自然内容'}
-- **建议**: {'选品质量高，可适度增加合作' if commercial_avg > organic_avg else '当前阶段以内容积累为主，暂不建议大量接商单'}
+商业信号样本与其他样本存在公开点赞差异，但这不能证明商业内容带来增益或损耗。建议人工复核被识别样本是否确为合作内容，再结合客户目标做定价、选品或合作策略。
 
-### 路径 2: 内容变现（知识输出 → 影响力积累）
-- 通过持续输出 AI 领域内容积累粉丝信任
-- 未来可向知识付费 / 行业咨询 / 课程等方向延伸
+## 三、证据边界
 
-### 路径 3: 自有工具/产品化
-- **状态**: {'尚未启动' if detected_count < 3 else '初步探索中'}
-- {'当前以纯内容创作为主，未检测到自有产品推广迹象' if is_early else '具备产品化能力'}
-- 内容侧沉淀的方法论可逐步转化为标准化产品
-
-## 三、商业化「三级火箭」进化评估
-
-| 阶段 | 完成度 | 现状 |
-|------|--------|------|
-| 🚀 第一级：流量获取 | {'✅' if P.get('total_notes',0) > 100 else '⏳'} | {P.get('total_notes',0)} 篇笔记，月均 {round(P.get('total_notes',0)/max(G.get('months_active',1),1), 1)} 篇稳定更新 |
-| 🚀 第二级：用户留存 | {'✅' if P.get('median_likes',0) > 200 else '⏳'} | 中位数点赞 {P.get('median_likes',0)}，{'粉丝粘性较好' if P.get('median_likes',0) > 300 else '粉丝粘性中等'} |
-| 🚀 第三级：商业变现 | {'⏳' if is_early else '✅'} | 商业内容占 {detected_pct}%，均赞 {commercial_avg} |
-
-## 四、商业化阶段评估
-
-当前处于 {'早期商业化阶段' if is_early else '商业化探索期' if detected_pct < 15 else '成熟商业化阶段'}。
-
-- 商业内容占比 {detected_pct}%
-- {'商业化程度较低，内容生态健康。当前首要任务是扩大内容影响力而非急于变现。' if is_early else '商业与内容在寻找平衡点'}
-- **建议**: {'保持当前内容节奏，待粉丝量级突破后再系统规划商业变现' if is_early else '建立品牌合作标准，控制商单比例不超过15%'}
+{C.get('signal_scope', '')}
 """
 else:
     r06 = """# 商业化分析
@@ -890,6 +859,7 @@ else:
 *商业化检测基于标题关键词匹配，当前未检测到明显的商业内容。*
 """
 
+r06 += dimension_evidence_section('commercial_signals')
 w('06_商业化分析.md', r06)
 
 # ============================================================
@@ -900,7 +870,7 @@ positioning_line = "当前主题分类覆盖不足，只能做单账号基础画
 if TOPIC_OK and main_topics:
     positioning_line = "以内容主题和标题特征观察，账号更偏行业观察/实用评测混合型。"
 
-r07 = f"""# 竞争定位分析（单博主版）
+r07 = f"""# 单账号内容坐标与竞争假设
 
 *完整竞争定位需要对比同赛道 3-5 个博主。以下为基于单一博主内容特征的初步推断。*
 
@@ -934,14 +904,14 @@ r07 = f"""# 竞争定位分析（单博主版）
 | 创作周期 | ~{G.get('months_active', '?')} 个月 |
 | 内容集中度 | Top {E.get('pareto_80pct_pct','?')}% 笔记占 80% 点赞 |
 
-## 三、差异化优势（与同赛道对比推断）
+## 三、单账号特征（不是竞品对比）
 
-| 维度 | 该博主 | 推测赛道常态 |
+| 维度 | 该博主 | 证据边界 |
 |------|-------|-------------|
 | 内容深度 | 暂不评分 | 缺少正文数据，不能判断深度 |
 | 更新频率 | {'★★★★☆' if P.get('total_notes',0)/max(G.get('months_active',1),1) > 15 else '★★★☆☆'} | 基于发布时间和样本量 |
 | 内容广度 | {'暂不评分' if not TOPIC_OK else '★★★☆☆'} | {'主题未归类比例偏高' if not TOPIC_OK else '基于已归类主题观察'} |
-| 差异化 | {'暂不判断' if not main_topics else '基于 ' + '/'.join(main_topics[:2]) + ' 的内容定位'} |
+| 差异化 | {'暂不判断' if not main_topics else '候选方向：' + '/'.join(main_topics[:2])} | 缺少同赛道账号，不能判断差异化优势 |
 
 ## 四、壁垒与可复制性评估
 
@@ -961,184 +931,85 @@ w('07_竞争定位分析.md', r07)
 # 08_策略建议与行动计划.md
 # ============================================================
 
-findings = []
-if T:
-    topic_candidates = [
-        item for item in T.items()
-        if (
-            TOPIC_OK
-            and is_reliable_topic(item[0], item[1])
-            and item[1].get('avg_likes', 0) >= overall_avg * 1.15
-        )
-    ]
-    if topic_candidates:
-        best_topic = max(topic_candidates, key=lambda x: x[1]['avg_likes'])
-        findings.append(f"**{best_topic[0]} ROI 最高**: 均赞 {best_topic[1]['avg_likes']} = 整体均值的 {round(best_topic[1]['avg_likes']/max(overall_avg,1),1)} 倍，爆款率 {best_topic[1]['burst_rate']}%")
-    else:
-        findings.append("**主题分类可信度不足**: 本次样本中低信息分类占比较高，暂不输出“最佳内容主题”结论。")
-
-video_eff = CT.get('video',{}).get('vs_image_pct', 0)
-if video_eff and video_eff < 90:
-    findings.append(f"**图文效率是视频的 {round(CT.get('normal',{}).get('avg_likes',0)/max(CT.get('video',{}).get('avg_likes',1),1),1)} 倍**: 视频均赞只有图文的 {video_eff}%")
-
-if dynamic_patterns:
-    best_pat = sorted(dynamic_patterns.items(), key=lambda x: x[1]['vs_baseline_pct'], reverse=True)[0]
-    if abs(best_pat[1]['vs_baseline_pct']) > 10:
-        findings.append(f"**{best_pat[0]}** vs 基准 {best_pat[1]['vs_baseline_pct']:+.1f}%: {'这是该博主最有效的标题手法' if best_pat[1]['vs_baseline_pct'] > 0 else '该模式效果不佳，建议减少使用'}")
-
-findings.append(f"**内容集中度**: Top {E.get('pareto_80pct_pct','?')}% 笔记贡献 80% 点赞，{'典型的爆款驱动型' if E.get('pareto_80pct_pct', 100) < 35 else '分布相对均衡的'}账号")
-
 real_burst_rate = round(burst_note_count / max(P.get('total_notes', 1), 1) * 100, 1) if P.get('total_notes') else 0
-
-# Build title templates from ACTUAL high-performing formula data
-template_lines = ''
-positive_dynamic_formulas = [
-    (fname, fdata) for fname, fdata in dynamic_formulas.items()
-    if is_recommendable_pattern(fdata)
-]
-positive_tf = [
-    (fname, fdata) for fname, fdata in TF.items()
-    if is_recommendable_pattern(fdata)
-]
-
-if positive_dynamic_formulas:
-    for fname, fdata in sorted(positive_dynamic_formulas, key=lambda x: x[1]['avg_likes'], reverse=True)[:5]:
-        td = fdata
-        top_title = td.get('top', '')
-        direction = '⬆' if td['vs_overall_pct'] > 0 else '⬇'
-        template_lines += f"| **{fname}** | 均赞 {td['avg_likes']}（{direction}{abs(td['vs_overall_pct'])}%） | 爆款率 {td['burst_rate']}% | `{top_title[:40]}` |\n"
-elif positive_tf:
-    for fname, fdata in sorted(positive_tf, key=lambda x: x[1]['avg_likes'], reverse=True)[:5]:
-        direction = '⬆' if fdata['vs_overall_pct'] > 0 else '⬇'
-        top_title = fdata.get('top', '')
-        template_lines += f"| **{fname}** | 均赞 {fdata['avg_likes']}（{direction}{abs(fdata['vs_overall_pct'])}%） | 爆款率 {fdata['burst_rate']}% | `{top_title[:40]}` |\n"
-else:
-    template_lines = "| 暂无稳定高表现标题公式 | 本次样本没有满足推荐门槛的标题模式 | - | - |\n"
-
-# Title formula recommendations from dynamic data or fallback
-r08_title_recs = ''
-top_dyn_formulas = sorted(positive_dynamic_formulas, key=lambda x: x[1]['avg_likes'], reverse=True)[:3]
-top_tf = sorted(positive_tf, key=lambda x: x[1]['avg_likes'], reverse=True)[:3]
-
-if top_dyn_formulas:
-    for i, (fname, fdata) in enumerate(top_dyn_formulas, 1):
-        r08_title_recs += f"{i}. **{fname}** — 均赞 {fdata['avg_likes']}，vs 整体 {'+' if fdata['vs_overall_pct'] > 0 else ''}{fdata['vs_overall_pct']}%\n"
-elif top_tf:
-    for i, (fname, fdata) in enumerate(top_tf, 1):
-        r08_title_recs += f"{i}. **{fname}** — 均赞 {fdata['avg_likes']}，vs 整体 {'+' if fdata['vs_overall_pct'] > 0 else ''}{fdata['vs_overall_pct']}%\n"
-else:
-    r08_title_recs = "本次样本没有满足推荐门槛的稳定标题公式。建议先参考高赞样本的具体表达，不要套用低表现公式。\n"
-
-if Q.get('content_text_completeness', 0) >= 0.5:
-    body_template_block = """### 正文结构模板
-
-**教程/干货类**:
-```
-【开头】"如果你也遇到过...问题，那这篇就是为你准备的"
-【问题】"很多人以为...但其实..."
-【方案】"核心就三步: 第一...第二...第三..."
-【示例】"比如我最近做的这个..."
-【总结】"收藏这篇，下次直接用"
-```
-
-**观点类**:
-```
-【Hook】"最近我在想一个问题..."
-【现象】"我观察到..."
-【分析】"这背后的原因是..."
-【观点】"所以我认为..."
-【互动】"你觉得呢？"
-```
-"""
-else:
-    body_template_block = """### 正文结构模板
-
-本次正文数据不足，暂不输出正文结构模板。当前建议只参考标题、发布时间和互动表现；如果后续采集到完整正文，再做正文 Hook、内容结构和 CTA 拆解。
-"""
-
-tag_action_line = "- [ ] 检查标签组合：核心标签 + 场景标签" if TAG_HAS_DATA else "- [ ] 暂不做标签策略：本次标签数据不足，先聚焦选题和标题"
-
-reliable_topic_rows = ''
 reliable_topics = [
     (name, data) for name, data in sorted(T.items(), key=lambda x: x[1].get('avg_likes', 0), reverse=True)
-    if TOPIC_OK and is_reliable_topic(name, data) and data.get('avg_likes', 0) >= overall_avg * 1.15
+    if TOPIC_OK and is_reliable_topic(name, data, 8)
+    and data.get('avg_likes', 0) >= overall_avg * 1.15
+    and data.get('median_likes', 0) >= overall_median * 1.1
 ]
-if reliable_topics:
-    total_reliable = sum(data.get('count', 0) for _, data in reliable_topics) or 1
-    for name, data in reliable_topics[:5]:
-        suggested_pct = round(data.get('count', 0) / total_reliable * 100)
-        reliable_topic_rows += f"| {name} | {suggested_pct}% | 当前 {data.get('count', 0)} 篇，均赞 {data.get('avg_likes', 0)}，爆款率 {data.get('burst_rate', 0)}% |\n"
-else:
-    reliable_topic_rows = "| 暂不输出固定配比 | - | 主题分类覆盖或样本置信不足，先复盘高赞样本，不按比例扩量 |\n"
+topic_test = reliable_topics[0] if reliable_topics else None
+positive_formulas = [
+    (name, data) for name, data in {**dynamic_formulas, **TF}.items()
+    if is_recommendable_pattern(data)
+]
+positive_formulas.sort(key=lambda item: item[1].get('median_likes', 0), reverse=True)
+title_test = positive_formulas[0] if positive_formulas else None
+
+topic_block = (
+    f"优先验证「{topic_test[0]}」：{topic_test[1].get('count')} 篇，点赞中位数 {topic_test[1].get('median_likes')}、均值 {topic_test[1].get('avg_likes')}。"
+    if topic_test else
+    "当前没有同时通过样本量、均值和中位数门槛的主题，不给固定内容配比。"
+)
+title_block = (
+    f"优先验证「{title_test[0]}」：{title_test[1].get('count')} 篇，点赞中位数相对基线 {title_test[1].get('vs_median_pct', 0):+.1f}%。"
+    if title_test else
+    "当前没有通过稳健门槛的标题模式，不输出万能标题公式。"
+)
+body_block = (
+    f"已获得 {Q.get('content_sample_count', 0)} 篇有效正文，可从证据样本逐篇拆解开头承诺、主体信息和结尾动作；不生成脱离原文的通用模板。"
+    if CONTENT_TEXT_OK else
+    f"有效正文 {Q.get('content_sample_count', 0)} 篇，未达到 {Q.get('detail_required_count', 0)} 篇门槛，正文策略暂缓。"
+)
+tag_block = (
+    f"已获得 {Q.get('tag_sample_count', 0)} 篇标签样本，只测试标题、正文关键词与标签的一致性，不把频次当搜索热度。"
+    if TAG_HAS_DATA else
+    "标签样本未达到门槛，不输出 SEO 或固定标签组合。"
+)
 
 r08 = f"""# 策略建议与行动计划
 
-## 一、核心发现（Top {min(len(findings), 4)}）
+## 一、结论先行
 
-{chr(10).join([f'{i+1}. {f}' for i, f in enumerate(findings[:4])])}
+1. {topic_block}
+2. {title_block}
+3. 公开点赞中位数为 {P.get('median_likes', '?')}；Top {E.get('pareto_80pct_pct', '?')}% 笔记贡献 80% 点赞，复盘必须同时看典型样本与高赞样本。
+4. {body_block}
+5. {tag_block}
 
-## 二、内容策略建议
+以上是本次公开样本支持的测试优先级，不是平台机制、用户动机或因果结论。
 
-### 推荐内容配比
+## 二、未来 7 天执行表
 
-| 方向 | 建议占比 | 依据 |
-|------|---------|------|
-{reliable_topic_rows}
+| 天数 | 动作 | 完成标准 |
+|------|------|---------|
+| 第 1 天 | 复核报告引用的 5 条高赞证据 | 写下对象、场景、标题承诺和实际内容 |
+| 第 2 天 | 选择 1 个待测试主题 | 只改主题，不同时改多个变量 |
+| 第 3 天 | 为同一选题写 10 个标题 | 保留 3 个信息具体、正文能兑现的版本 |
+| 第 4 天 | 完成 1 篇内容 | 不套通用模板，逐项核对标题与正文一致 |
+| 第 5 天 | 发布并记录 | 记录主题、标题、时间和公开可见数据 |
+| 第 6 天 | 与账号中位数比较 | 不只和最高赞比较，不以单篇下结论 |
+| 第 7 天 | 决定下一轮 | 至少累计 3 次同类测试后再放大或停止 |
 
-### 标题策略
+## 三、明确避坑
 
-**推荐公式 Top 3**:
-{r08_title_recs}
+- 不根据单篇爆款认定“用户喜欢某主题”。
+- 不根据平均值单独推荐标题，必须同时通过中位数与样本量门槛。
+- 不把标签使用频次写成搜索量，不承诺排名或流量。
+- 不从公开点赞推断粉丝增长、曝光增长、收入或用户画像。
+- 不在没有竞品样本时声称具有赛道优势。
 
-**避坑**:
-- 避免纯事件性标题，互动极低
-- 避免过于垂直技术的标题，受众面太窄
+## 四、后续复盘看板
 
-### 发布节奏
-
-| 推荐频率 | 每周 3-4 篇 |
-|---------|------------|
-| 时间分布 | 当前未采集小时级发布时间，不判断最佳时段 |
-| 系列化 | 仅在标题聚类检测到稳定系列后再规划 |
-
-## 三、可直接套用的模板
-
-### 标题模板（基于数据中高表现的模式）
-
-| 模式 | 互动表现 | 爆款率 | 最佳标题示例 |
-|------|---------|-------|------------|
-{template_lines}
-
-{body_template_block}
-
-## 四、增长行动计划
-
-### 短期（本周）
-- [ ] 复盘当前 Top 10 高赞标题，记录对象、冲突点和结果承诺
-{tag_action_line}
-- [ ] 先补采正文/标签，再决定是否输出正文模板和 SEO 策略
-
-### 中期（本月）
-- [ ] 用 3-5 篇相邻选题验证一个方向，不直接按固定配比扩量
-- [ ] 对比每篇发布后的中位数、爆款率和标题结构
-- [ ] 如果主题未归类仍偏高，先优化分类词典或补充正文数据
-
-### 长期（本季度）
-- [ ] 建立固定的内容日历
-- [ ] 测试 1-2 个新内容形式
-- [ ] 补充 3-5 个同赛道账号后再做竞争定位
-- [ ] 有商业样本后再评估商业化路径
-
-## 五、关键指标看板
-
-| 指标 | 当前值 | 下一步观察 |
-|------|-------|------------|
-| 均赞 | {P.get('avg_likes','?')} | 与中位数一起看，避免被单篇爆款带偏 |
-| 爆款率 (>2x均赞) | {real_burst_rate}% | 用于验证新选题是否有效 |
-| 中位数 | {P.get('median_likes','?')} | 更适合作为稳定表现基线 |
-| 月发布数 | ~{round(P.get('total_notes',0)/max(G.get('months_active',1),1), 1)} | 先稳定节奏，再评估扩量 |
+| 指标 | 当前值 | 使用方式 |
+|------|-------|---------|
+| 点赞中位数 | {P.get('median_likes','?')} | 作为常态基线 |
+| 平均点赞 | {P.get('avg_likes','?')} | 与中位数一起看，识别异常值影响 |
+| 高表现样本率 (>2x均赞) | {real_burst_rate}% | 只作历史分布观察 |
+| 月均发布 | ~{round(P.get('total_notes',0)/max(G.get('months_active',1),1), 1)} | 观察节奏，不直接给频次目标 |
 """
 
+r08 += dimension_evidence_section('action_plan')
 w('08_策略建议与行动计划.md', r08)
 
 # ============================================================
@@ -1170,14 +1041,14 @@ idx = f"""# 小红书博主深度研究报告：{nickname}
 
 | # | 文件 | 定位 | 核心拆解项 |
 |---|------|------|-----------|
-| 00 | [博主画像卡片](00_博主画像卡片.md) | 总览层 | 一句话定位 · 基础数据看板 · 用户画像推断 · 人设要素矩阵 |
+| 00 | [博主画像卡片](00_博主画像卡片.md) | 总览层 | 内容覆盖 · 基础数据看板 · 受众信息边界 · 表达要素 |
 | 01 | [内容结构分析](01_内容结构分析.md) | 生产层 | 主题分布总览 · 各主题深度分析 · 内容形态效率对比 · 系列化内容聚类 · 内容密度 |
 | 02 | [标题与文案分析](02_标题与文案分析.md) | 文本层 | 标题基础特征统计 · 标题公式库 · 正文模块按覆盖率降级 |
-| 03 | [互动归因分析](03_互动归因分析.md) | 数据层 | 互动分布全景 · 帕累托分析 · 爆款vs普通两极对比 · 互动集中度指数 |
-| 04 | [成长轨迹分析](04_成长轨迹分析.md) | 时间层 | 成长阶段四部曲 · 关键转折点编年史 · 互动趋势 |
-| 05 | [标签与SEO分析](05_标签与SEO分析.md) | 流量层 | 标签大盘 · 高频标签Top20 · 组合策略 · 标签策略建议 |
+| 03 | [公开点赞表现](03_互动归因分析.md) | 数据层 | 点赞分布 · 帕累托分析 · 分层详情样本对比 · 证据边界 |
+| 04 | [发布与公开表现轨迹](04_成长轨迹分析.md) | 时间层 | 逐月发布 · 中位数变化 · 高表现样本时间线 |
+| 05 | [标签与搜索表达](05_标签与SEO分析.md) | 文本层 | 详情样本覆盖 · 高频标签 · 一致性测试建议 |
 | 06 | [商业化分析](06_商业化分析.md) | 变现层 | 商业信号检测 · 有样本才比较表现 |
-| 07 | [竞争定位分析](07_竞争定位分析.md) | 策略层 | 单账号基础观察 · 对标不足时降级 |
+| 07 | [内容坐标与竞争假设](07_竞争定位分析.md) | 策略层 | 单账号基础观察 · 对标不足时明确降级 |
 | 08 | [策略建议与行动计划](08_策略建议与行动计划.md) | 执行层 | 核心发现 · 内容/标题策略 · 模板库 · 三段式落地清单 · 指标看板 |
 
 ## 核心数据速览
@@ -1196,12 +1067,12 @@ idx = f"""# 小红书博主深度研究报告：{nickname}
 
 | 分析维度 | 微观拆解要素 | 数据源/底层逻辑 |
 |---------|-------------|----------------|
-| 博主画像 | 定位、人设观察 | 全量笔记元数据 + 平台公开信息，评论不足时不推断痛点 |
+| 博主画像 | 内容覆盖、表达观察 | 全量笔记元数据 + 平台公开信息，评论不足时不推断受众与痛点 |
 | 内容结构 | 8类主题分布、图文vs视频、系列化检测 | {P.get('total_notes','?')} 条笔记元数据 |
 | 标题与文案 | 标题特征量化、公式检测 | {P.get('total_notes','?')} 条标题；正文覆盖率 {round(Q.get('content_text_completeness', 0) * 100, 1)}% |
-| 互动归因 | 分布特征、极端值、两极样本对照、帕累托系数 | {P.get('total_notes','?')} 条互动数据 |
-| 成长轨迹 | 阶段划分、转折点检测、趋势解读 | {P.get('total_notes','?')} 条时间序列 |
-| 标签与SEO | 标签组合、效率排名 | {'样本标签数据' if TAG_HAS_DATA else '数据不足（需标签字段）'} |
+| 点赞表现 | 分布特征、极端值、分层详情样本对照、帕累托系数 | {P.get('total_notes','?')} 条公开点赞数据 |
+| 发布轨迹 | 逐月发布、点赞中位数变化 | {P.get('total_notes','?')} 条时间序列；不代表粉丝或曝光增长 |
+| 标签与搜索表达 | 样本内频次、一致性测试 | {'分层详情标签样本' if TAG_HAS_DATA else '数据不足（已降级）'} |
 | 商业化 | 商业信号检测 | 标题关键词弱检测；0 商业样本时不比较表现 |
 | 竞争定位 | 单账号基础观察 | 缺少对标账号时不判断可复制性 |
 
@@ -1214,9 +1085,9 @@ idx = f"""# 小红书博主深度研究报告：{nickname}
 
 ## 可信度分级量尺
 
-- **[Confirmed]**: 基于 30+ 样本的量化计算结论 → 属于确定性规律，可直接作为策略依据
-- **[Indicative]**: 基于 10-30 样本的趋势性指向 → 属于强相关趋势，具有高度参考价值
-- **[Speculative]**: 基于有限样本或外部推断 → 属于前瞻性洞察，需在实操中动态验证
+- **事实**: 可直接从公开样本读取或计算，例如样本数、点赞中位数、发布月份。
+- **线索**: 同时通过样本量、均值和中位数门槛的相关性，适合优先测试，不代表因果。
+- **暂缓**: 数据缺失、样本过少或需要竞品/后台信息的模块，不输出确定策略。
 """
 
 w('README.md', idx)

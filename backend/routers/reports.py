@@ -5,14 +5,24 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.database import Task, get_db
 from backend.config import settings
 from backend.routers.auth import get_current_user
+from backend.services.delivery import (
+    build_delivery_files,
+    build_delivery_html,
+    build_delivery_zip,
+    delivery_status,
+    load_context,
+    save_context,
+)
+from backend.tasks.worker import regenerate_outputs
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -258,6 +268,119 @@ async def get_quality(
     if not quality_path.exists():
         raise HTTPException(status_code=404, detail="Report quality check not found")
     return {"quality": json.loads(quality_path.read_text(encoding="utf-8"))}
+
+
+@router.get("/{task_id}/delivery/status")
+async def get_delivery_status(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Check whether a report is ready for paid customer delivery."""
+    _get_owned_task(task_id, db, current_user)
+    return {"delivery": delivery_status(_task_data_dir(task_id), _reports_dir(task_id))}
+
+
+@router.post("/{task_id}/delivery/regenerate")
+async def regenerate_delivery_report(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Rebuild an existing task with the current report rules without recollecting data."""
+    _get_owned_task(task_id, db, current_user)
+    try:
+        regenerate_outputs(task_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"delivery": delivery_status(_task_data_dir(task_id), _reports_dir(task_id))}
+
+
+@router.get("/{task_id}/delivery/context")
+async def get_delivery_context(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    return {"context": load_context(_task_data_dir(task_id))}
+
+
+@router.put("/{task_id}/delivery/context")
+async def update_delivery_context(
+    task_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    return {"context": save_context(_task_data_dir(task_id), body)}
+
+
+@router.get("/{task_id}/delivery/preview", response_class=HTMLResponse)
+async def preview_delivery_report(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    return HTMLResponse(build_delivery_html(task_id, _task_data_dir(task_id), _reports_dir(task_id)))
+
+
+@router.get("/{task_id}/delivery/html")
+async def download_delivery_html(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    body = build_delivery_html(task_id, _task_data_dir(task_id), _reports_dir(task_id))
+    return StreamingResponse(
+        BytesIO(body.encode("utf-8")),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=account_report_{task_id}.html"},
+    )
+
+
+@router.get("/{task_id}/delivery/pdf")
+async def download_delivery_pdf(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    import tempfile
+
+    try:
+        with tempfile.TemporaryDirectory(prefix=f"xhs-pdf-{task_id}-") as temp:
+            built = build_delivery_files(task_id, _task_data_dir(task_id), _reports_dir(task_id), Path(temp))
+            payload = built["pdf"].read_bytes()
+            filename = built["pdf"].name
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return StreamingResponse(
+        BytesIO(payload),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
+@router.get("/{task_id}/delivery/package")
+async def download_delivery_package(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_owned_task(task_id, db, current_user)
+    try:
+        payload, filename = build_delivery_zip(task_id, _task_data_dir(task_id), _reports_dir(task_id))
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return StreamingResponse(
+        payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.get("/{task_id}/share")

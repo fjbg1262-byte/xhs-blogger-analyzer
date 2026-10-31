@@ -13,6 +13,8 @@ from backend.routers.tasks import _ensure_task_slot, _normalize_profile_url, _ta
 from backend.tasks.worker import submit_task
 from backend.utils.cookie import cookies_array_to_dict
 from backend.services.telemetry import track
+from backend.services.ai_agent import ai_config_status
+from backend.routers.library import create_collection
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
@@ -26,6 +28,18 @@ MSG_COOKIE_REQUIRED = "\u8bf7\u5148\u5728\u5f53\u524d\u6d4f\u89c8\u5668\u91cc\u7
 class ExtensionAnalyzeRequest(BaseModel):
     profile_url: str
     cookie_text: str
+
+
+@router.post("/collect-current")
+def collect_current(body: ExtensionAnalyzeRequest, db: Session = Depends(get_db)):
+    user = _get_or_create_local_user(db)
+    profile_url = _normalize_profile_url(body.profile_url)
+    _ensure_task_slot(db, user.id)
+    cookie = _save_extension_cookie(db, user.id, body.cookie_text)
+    task = create_collection(db, user.id, profile_url, cookie.id)
+    token = _create_jwt({"sub": str(user.id), "username": user.username})
+    redirect = quote(f"/library?task={task.id}", safe="")
+    return {"task_id": task.id, "report_url": f"{FRONTEND_BASE_URL}/extension-login?token={quote(token, safe='')}&username={user.username}&redirect={redirect}"}
 
 
 def _get_or_create_local_user(db: Session) -> User:
@@ -92,7 +106,7 @@ def analyze_current(body: ExtensionAnalyzeRequest, db: Session = Depends(get_db)
     db.commit()
     db.refresh(task)
 
-    submit_task(task.id, enable_ai=False)
+    submit_task(task.id, enable_ai=ai_config_status(user.id)["configured"])
 
     token = _create_jwt({"sub": str(user.id), "username": user.username})
     redirect = quote(f"/analysis/{task.id}", safe="")

@@ -1,4 +1,6 @@
 # Dependencies
+.build/
+archive/
 node_modules/
 __pycache__/
 *.pyc
@@ -16,9 +18,15 @@ data/results.json
 data/tasks/
 data/app.db
 data/app.db-journal
+data/app.db-wal
+data/app.db-shm
+data/profile.json
+data/analysis_results.json
 data/database.db
 data/llm_config.json
+data/telemetry_preferences.json
 debug_api.json
+.tmp/
 release/
 reports/
 repo/

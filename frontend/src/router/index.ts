@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { isAuthenticated } from '../auth'
 
 const routes = [
-  { path: '/', redirect: '/dashboard' },
+  { path: '/', redirect: '/library' },
+  { path: '/library', name: 'Library', component: () => import('../views/LibraryView.vue') },
   {
     path: '/login',
     name: 'Login',
@@ -71,7 +72,7 @@ router.beforeEach((to) => {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (to.path === '/login' && isAuthenticated()) {
-    return '/dashboard'
+    return '/library'
   }
 })
 

@@ -12,7 +12,7 @@ from backend.services.analyzer import run_analysis
 from backend.services.insight_brief import build_insight_brief
 from backend.services.report_quality import run_report_quality_check
 from backend.services.reporter import generate_reports
-from backend.services.ai_agent import deconstruct_notes, diagnose_account
+from backend.services.ai_agent import build_grounded_ai_enhancement, enhancement_fingerprint
 from backend.services.telemetry import classify_error, track
 
 # In-memory task state
@@ -22,6 +22,7 @@ _executor = None
 
 MSG_COLLECT_COOKIE = "\u91c7\u96c6\u5931\u8d25\uff1aCookie \u53ef\u80fd\u5df2\u8fc7\u671f\u6216\u7f3a\u5c11\u5fc5\u8981\u5b57\u6bb5\u3002\u8bf7\u91cd\u65b0\u767b\u5f55\u5c0f\u7ea2\u4e66\u540e\u5bfc\u5165\u5b8c\u6574 Cookie\u3002"
 MSG_COLLECT_TIMEOUT = "\u91c7\u96c6\u8d85\u65f6\uff1a\u7f51\u7edc\u8f83\u6162\u6216\u76ee\u6807\u63a5\u53e3\u6682\u65f6\u65e0\u54cd\u5e94\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+MSG_COLLECT_NETWORK = "采集网络连接失败：暂时无法连接小红书。请先确认浏览器可以正常打开小红书，然后等待 30 秒再重试。"
 MSG_COLLECT_COMPONENT = "\u91c7\u96c6\u7ec4\u4ef6 Spider_XHS \u4e0d\u53ef\u7528\uff0c\u8bf7\u68c0\u67e5\u9879\u76ee\u4f9d\u8d56\u662f\u5426\u5b8c\u6574\u3002"
 MSG_COLLECT_NOTES = "\u91c7\u96c6\u7b14\u8bb0\u5931\u8d25\uff1a"
 MSG_COOKIE_NOT_FOUND = "Cookie \u4e0d\u5b58\u5728\uff0c\u8bf7\u5148\u5728\u8bbe\u7f6e\u9875\u6dfb\u52a0 Cookie\u3002"
@@ -43,8 +44,9 @@ def _progress_log(stage: str, detail: str = "", steps=None) -> str:
 
 FULL_ANALYSIS_STEPS = [
     {"key": "prepare", "label": "准备任务", "progress": 5},
-    {"key": "collect", "label": "采集主页公开内容", "progress": 40},
-    {"key": "analyze", "label": "识别主题与互动表现", "progress": 70},
+    {"key": "collect", "label": "采集主页公开内容", "progress": 28},
+    {"key": "enrich", "label": "补充正文、媒体、评论与搜索", "progress": 70},
+    {"key": "analyze", "label": "完成八维证据分析", "progress": 84},
     {"key": "report", "label": "生成分析报告", "progress": 90},
     {"key": "finish", "label": "保存结果", "progress": 100},
 ]
@@ -52,7 +54,7 @@ FULL_ANALYSIS_STEPS = [
 
 DETAIL_FETCH_STEPS = [
     {"key": "prepare", "label": "准备补充采集", "progress": 10},
-    {"key": "fetch", "label": "补充正文与标签", "progress": 65},
+    {"key": "fetch", "label": "补充正文、媒体、评论与搜索", "progress": 70},
     {"key": "rerun", "label": "重新分析报告", "progress": 90},
     {"key": "finish", "label": "保存结果", "progress": 100},
 ]
@@ -96,8 +98,20 @@ def _is_cancelled(task_id: int) -> bool:
 def _friendly_error(exc: Exception) -> str:
     raw = str(exc)
     lower = raw.lower()
+    if raw.startswith("采集网络连接失败："):
+        return raw[:500]
     if "cookie" in lower or "\u767b\u5f55" in raw or "unauthorized" in lower or "403" in raw:
         return MSG_COLLECT_COOKIE
+    if any(marker in lower for marker in (
+        "newconnectionerror",
+        "max retries exceeded",
+        "failed to establish a new connection",
+        "connection refused",
+        "name resolution",
+        "getaddrinfo failed",
+        "proxyerror",
+    )):
+        return MSG_COLLECT_NETWORK
     if "timeout" in lower or "timed out" in lower:
         return MSG_COLLECT_TIMEOUT
     if "spider_xhs not found" in lower:
@@ -130,11 +144,19 @@ def _mark_failed(
     track("analysis_failed", properties)
 
 
-def _rerun_outputs(task_id: int, task_dir: Path, account_id: int = None, session=None) -> dict:
+def _rerun_outputs(
+    task_id: int,
+    task_dir: Path,
+    account_id: int = None,
+    session=None,
+    ai_user_id: int = None,
+) -> dict:
     """Re-run analysis, brief, quality checks and markdown reports from task files."""
     notes_path = str(task_dir / "all_notes.json")
     profile_path = str(task_dir / "profile.json")
     contents_path = str(task_dir / "contents.json")
+    comments_path = str(task_dir / "comments.json")
+    search_path = str(task_dir / "search_landscape.json")
     results_path = str(task_dir / "results.json")
     data_quality_path = str(task_dir / "data_quality.json")
     insight_brief_path = str(task_dir / "insight_brief.json")
@@ -145,22 +167,55 @@ def _rerun_outputs(task_id: int, task_dir: Path, account_id: int = None, session
         profile_path=profile_path,
         output_path=results_path,
         contents_path=contents_path if Path(contents_path).exists() else None,
+        comments_path=comments_path if Path(comments_path).exists() else None,
+        search_path=search_path if Path(search_path).exists() else None,
         quality_output_path=data_quality_path,
     )
+    ai_path = task_dir / "ai_enhancement.json"
+    all_notes = json.loads(Path(notes_path).read_text(encoding="utf-8"))
+    contents = json.loads(Path(contents_path).read_text(encoding="utf-8")) if Path(contents_path).exists() else []
+    comments = json.loads(Path(comments_path).read_text(encoding="utf-8")) if Path(comments_path).exists() else []
+    from backend.services.delivery import load_context
+    context = load_context(task_dir)
+    input_fingerprint = enhancement_fingerprint(results, all_notes, contents, comments, context)
+    if ai_user_id is not None:
+        ai_enhancement = build_grounded_ai_enhancement(
+            results,
+            all_notes,
+            contents,
+            comments,
+            user_id=ai_user_id,
+            context=context,
+        )
+        ai_enhancement["input_fingerprint"] = input_fingerprint
+        ai_path.write_text(json.dumps(ai_enhancement, ensure_ascii=False, indent=2), encoding="utf-8")
+        results["ai_enhancement"] = ai_enhancement
+        Path(results_path).write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    elif ai_path.exists():
+        try:
+            cached = json.loads(ai_path.read_text(encoding="utf-8"))
+            results["ai_enhancement"] = cached if cached.get("input_fingerprint") == input_fingerprint else {
+                "enabled": False, "status": "stale", "dimensions": {},
+                "message": "原始数据或客户目标已变化，旧 AI 结果未复用。",
+            }
+            Path(results_path).write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, ValueError, TypeError):
+            pass
     build_insight_brief(
         results_path=results_path,
         all_notes_path=notes_path,
         data_quality_path=data_quality_path,
         output_path=insight_brief_path,
     )
+    reports_dir = str(Path(settings.reports_dir) / f"task_{task_id}")
+    generate_reports(results_path, reports_dir)
     run_report_quality_check(
         results_path=results_path,
         brief_path=insight_brief_path,
         data_quality_path=data_quality_path,
         output_path=report_quality_path,
+        reports_dir=reports_dir,
     )
-    reports_dir = str(Path(settings.reports_dir) / f"task_{task_id}")
-    generate_reports(results_path, reports_dir)
 
     if session is not None and account_id:
         try:
@@ -240,21 +295,21 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
         collector.save_task_data(task_dir, data)
         _update_task(
             task_id,
-            progress=40,
+            progress=28,
             run_log=_progress_log(
                 "采集完成",
-                f"已保存 {len(data.get('all_notes', []))} 篇公开笔记，开始做内容分析。",
+                f"已保存 {len(data.get('all_notes', []))} 篇公开笔记，开始选择分层详情样本。",
                 FULL_ANALYSIS_STEPS,
             ),
         )
         if _is_cancelled(task_id):
             return
 
-        # Phase 2: Run analysis
+        # Phase 2: Initial analysis selects balanced detail and research samples.
         _update_task(
             task_id,
-            progress=55,
-            run_log=_progress_log("分析内容结构", "正在识别主题、互动表现和可引用证据。", FULL_ANALYSIS_STEPS),
+            progress=32,
+            run_log=_progress_log("识别初步主题", "正在为详情、评论和媒体采集选择代表样本。", FULL_ANALYSIS_STEPS),
         )
         try:
             results = _rerun_outputs(task_id, task_dir)
@@ -267,11 +322,84 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
                 started_monotonic=started_monotonic,
             )
             return
+        def update_detail_progress(done: int, total: int):
+            if total:
+                _update_task(
+                    task_id,
+                    progress=35 + int(20 * done / total),
+                    run_log=_progress_log("补充笔记详情", f"正在采集正文、标签、媒体与完整互动：{done}/{total}", FULL_ANALYSIS_STEPS),
+                )
+
+        enrichment_errors = []
+        try:
+            collector.enrich_note_details(
+                task_dir=task_dir,
+                cookies_input=cookie.cookie_json,
+                max_count=30,
+                progress_callback=update_detail_progress,
+            )
+        except Exception as exc:
+            enrichment_errors.append(f"详情补采：{_friendly_error(exc)}")
+
+        # Re-run once so search terms can use the actual detail tags and topics.
+        try:
+            results = _rerun_outputs(task_id, task_dir)
+        except RuntimeError as exc:
+            enrichment_errors.append(f"详情分析：{_friendly_error(exc)}")
+
+        def update_comment_progress(done: int, total: int):
+            if total:
+                _update_task(
+                    task_id,
+                    progress=56 + int(11 * done / total),
+                    run_log=_progress_log("采集代表评论", f"正在读取代表内容的公开评论：{done}/{total}", FULL_ANALYSIS_STEPS),
+                )
+
+        try:
+            collector.enrich_comments(
+                task_dir=task_dir,
+                cookies_input=cookie.cookie_json,
+                max_notes=12,
+                comments_per_note=10,
+                progress_callback=update_comment_progress,
+            )
+        except Exception as exc:
+            enrichment_errors.append(f"评论采集：{_friendly_error(exc)}")
+
         _update_task(
             task_id,
-            progress=75,
-            run_log=_progress_log("生成结构化结论", "正在整理账号定位、主题地图和行动建议。", FULL_ANALYSIS_STEPS),
+            progress=68,
+            run_log=_progress_log("研究搜索表达", "正在读取少量关键词联想和公开搜索结果。", FULL_ANALYSIS_STEPS),
         )
+        try:
+            collector.enrich_search_landscape(task_dir, cookie.cookie_json, max_keywords=4, results_per_keyword=10)
+        except Exception as exc:
+            enrichment_errors.append(f"搜索研究：{_friendly_error(exc)}")
+
+        _update_task(
+            task_id,
+            progress=74,
+            run_log=_progress_log("完成八维分析", "正在合并标题、正文、媒体、评论和搜索证据。", FULL_ANALYSIS_STEPS),
+        )
+        try:
+            results = _rerun_outputs(
+                task_id,
+                task_dir,
+                ai_user_id=task.user_id if enable_ai else None,
+            )
+        except RuntimeError as e:
+            _mark_failed(
+                task_id,
+                e,
+                stage="analyze",
+                task_type="full_analysis",
+                started_monotonic=started_monotonic,
+            )
+            return
+        if enrichment_errors:
+            (task_dir / "enrichment_warnings.json").write_text(
+                json.dumps({"warnings": enrichment_errors}, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         if _is_cancelled(task_id):
             return
 
@@ -284,25 +412,6 @@ def _run_full_analysis(task_id: int, enable_ai: bool = False):
         )
         if _is_cancelled(task_id):
             return
-
-        # Phase 4: AI Agent (optional)
-        if enable_ai:
-            try:
-                notes_path_p = task_dir / "all_notes.json"
-                if notes_path_p.exists():
-                    all_notes = json.loads(notes_path_p.read_text(encoding="utf-8"))
-                    ai_result = deconstruct_notes(all_notes, user_id=task.user_id)
-                    (task_dir / "ai_deconstruct.txt").write_text(ai_result, encoding="utf-8")
-
-                    ai_diagnosis = diagnose_account(results, user_id=task.user_id)
-                    (task_dir / "ai_diagnosis.txt").write_text(ai_diagnosis, encoding="utf-8")
-            except Exception as e:
-                print(f"[Worker] AI Agent error: {e}")
-            _update_task(
-                task_id,
-                progress=95,
-                run_log=_progress_log("AI 增强分析", "正在保存 AI 增强分析结果。", FULL_ANALYSIS_STEPS),
-            )
 
         _update_task(
             task_id,
@@ -500,13 +609,13 @@ def _run_detail_enrichment(task_id: int, max_count: int = 25):
         def update_detail_progress(done: int, total: int):
             if total <= 0:
                 return
-            progress = 15 + int(50 * min(done, total) / total)
+            progress = 15 + int(35 * min(done, total) / total)
             _update_task(
                 task_id,
                 progress=progress,
                 run_log=_progress_log(
-                    "补充正文与标签",
-                    f"已处理 {done}/{total} 篇重点笔记。",
+                    "补充正文、媒体与互动",
+                    f"已处理 {done}/{total} 篇代表笔记。",
                     DETAIL_FETCH_STEPS,
                 ),
             )
@@ -519,26 +628,50 @@ def _run_detail_enrichment(task_id: int, max_count: int = 25):
         )
         _update_task(
             task_id,
-            progress=70,
-            run_log=_progress_log("补充采集完成", "正在把正文和标签重新写入分析。", DETAIL_FETCH_STEPS),
+            progress=52,
+            run_log=_progress_log("补充详情完成", "正在选择评论和搜索研究样本。", DETAIL_FETCH_STEPS),
         )
         if _is_cancelled(task_id):
             return
 
+        _rerun_outputs(task_id, task_dir)
+        enrichment_errors = []
+        try:
+            collector.enrich_comments(
+                task_dir=task_dir,
+                cookies_input=cookie.cookie_json,
+                max_notes=12,
+                comments_per_note=10,
+            )
+        except Exception as exc:
+            enrichment_errors.append(f"评论采集：{_friendly_error(exc)}")
         _update_task(
             task_id,
-            progress=85,
-            run_log=_progress_log("重新分析报告", "正在更新主题、证据和正文标签判断。", DETAIL_FETCH_STEPS),
+            progress=72,
+            run_log=_progress_log("研究搜索表达", "正在补充关键词联想与公开结果样本。", DETAIL_FETCH_STEPS),
+        )
+        try:
+            collector.enrich_search_landscape(task_dir, cookie.cookie_json, max_keywords=4, results_per_keyword=10)
+        except Exception as exc:
+            enrichment_errors.append(f"搜索研究：{_friendly_error(exc)}")
+        _update_task(
+            task_id,
+            progress=86,
+            run_log=_progress_log("重新分析报告", "正在更新八维结论、证据和数据边界。", DETAIL_FETCH_STEPS),
         )
         _rerun_outputs(task_id, task_dir)
+        if enrichment_errors:
+            (task_dir / "enrichment_warnings.json").write_text(
+                json.dumps({"warnings": enrichment_errors}, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         _update_task(
             task_id,
             status="completed",
             progress=100,
             completed_at=datetime.utcnow(),
-            run_log=_progress_log("补充完成", "正文与标签已补充，报告已重新生成。", DETAIL_FETCH_STEPS),
+            run_log=_progress_log("补充完成", "正文、媒体、评论和搜索样本已补充，报告已重新生成。", DETAIL_FETCH_STEPS),
             error_message=(
-                f"正文与标签补采完成：成功 {detail_fetch.get('success_count', 0)} 条，"
+                f"公开数据补采完成：详情成功 {detail_fetch.get('success_count', 0)} 条，"
                 f"失败 {detail_fetch.get('failed_count', 0)} 条。"
             ),
         )
@@ -572,7 +705,7 @@ def _run_detail_enrichment(task_id: int, max_count: int = 25):
             status="completed",
             progress=100,
             completed_at=datetime.utcnow(),
-            error_message=f"正文与标签补采失败，基础报告仍可使用：{_friendly_error(e)}",
+            error_message=f"公开数据补采失败，基础报告仍可使用：{_friendly_error(e)}",
         )
         track(
             "analysis_failed",
@@ -596,6 +729,14 @@ def submit_task(task_id: int, enable_ai: bool = False):
 
     thread = threading.Thread(target=_run_full_analysis, args=(task_id, enable_ai), daemon=True)
     thread.start()
+
+
+def regenerate_outputs(task_id: int) -> dict:
+    """Regenerate analysis, reports and semantic quality checks from saved task data."""
+    task_dir = Path(settings.data_dir) / "tasks" / str(task_id)
+    if not (task_dir / "all_notes.json").exists():
+        raise RuntimeError("任务缺少原始笔记数据，无法重新生成报告。")
+    return _rerun_outputs(task_id, task_dir)
 
 
 def submit_detail_enrichment(task_id: int, max_count: int = 25):

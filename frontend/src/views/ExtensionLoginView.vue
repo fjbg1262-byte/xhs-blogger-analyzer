@@ -17,7 +17,7 @@ const route = useRoute()
 const router = useRouter()
 
 const failed = ref(false)
-const title = ref('正在打开分析报告')
+const title = ref('正在打开本地工作台')
 const detail = ref('请稍等，正在连接本地分析工具。')
 
 onMounted(() => {

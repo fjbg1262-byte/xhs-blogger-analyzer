@@ -14,13 +14,14 @@ from fastapi.staticfiles import StaticFiles
 from backend.database import init_db
 from backend.config import settings
 from backend.tasks.worker import init_worker
-from backend.routers import ai, auth, cookies, extension, llm_config, reports, tasks, telemetry
+from backend.routers import ai, auth, cookies, extension, library, llm_config, reports, tasks, telemetry
 from backend.services.telemetry import track
+from backend.services.customer_report import REPORT_RENDERER_VERSION
 
 app = FastAPI(
-    title="XHS Blogger Analyzer",
-    description="小红书博主深度分析平台 — AI 驱动的 8 维度内容分析",
-    version="1.0.0",
+    title="小红书主页内容整理器",
+    description="主页公开笔记整理与 Excel / CSV / 飞书导入",
+    version="0.3.0-beta.4",
 )
 
 # CORS
@@ -43,6 +44,14 @@ def startup():
     os.makedirs(os.path.join(settings.data_dir, "cookies"), exist_ok=True)
     os.makedirs(os.path.join(settings.data_dir, "tasks"), exist_ok=True)
     init_db()
+    # A process restart cannot resume an in-flight SDK request; unblock new tasks.
+    from backend.database import SessionLocal, Task
+    from pathlib import Path
+    with SessionLocal() as db:
+        for task in db.query(Task).filter(Task.task_type == "note_collection", Task.status.in_(("pending", "running"))).all():
+            task.status = "partial" if (Path(settings.data_dir) / "tasks" / str(task.id) / "dataset.json").exists() else "failed"
+            task.error_message = "上次运行已中断，已保存的数据仍可下载。"
+        db.commit()
 
     # Check Spider_XHS
     if not os.path.exists(settings.spider_xhs_dir):
@@ -62,6 +71,7 @@ app.include_router(reports.router)
 app.include_router(ai.router)
 app.include_router(llm_config.router)
 app.include_router(extension.router)
+app.include_router(library.router)
 app.include_router(telemetry.router)
 
 
@@ -69,7 +79,9 @@ app.include_router(telemetry.router)
 def health():
     return {
         "status": "ok",
+        "organizer_schema": "1.0",
         "app_version": settings.app_version,
+        "report_renderer_version": REPORT_RENDERER_VERSION,
         "spider_xhs_available": os.path.exists(settings.spider_xhs_dir),
         "limits": {
             "max_notes_per_task": settings.max_notes_per_task,

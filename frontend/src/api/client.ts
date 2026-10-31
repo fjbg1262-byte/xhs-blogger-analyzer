@@ -32,6 +32,10 @@ api.interceptors.response.use(
 
 export default api
 
+export const systemAPI = {
+  health: () => api.get('/health'),
+}
+
 // Auth
 export const authAPI = {
   login: (username: string, password: string) =>
@@ -73,6 +77,20 @@ export const reportAPI = {
     api.get(`/reports/${taskId}/export`, { responseType: 'blob' }),
   exportShare: (taskId: number) =>
     api.get(`/reports/${taskId}/share`, { responseType: 'blob' }),
+  deliveryStatus: (taskId: number) => api.get(`/reports/${taskId}/delivery/status`),
+  regenerateDelivery: (taskId: number) =>
+    api.post(`/reports/${taskId}/delivery/regenerate`, {}, { timeout: 120000 }),
+  deliveryContext: (taskId: number) => api.get(`/reports/${taskId}/delivery/context`),
+  saveDeliveryContext: (taskId: number, body: Record<string, string>) =>
+    api.put(`/reports/${taskId}/delivery/context`, body),
+  deliveryPreview: (taskId: number) =>
+    api.get(`/reports/${taskId}/delivery/preview`, { responseType: 'blob' }),
+  deliveryHtml: (taskId: number) =>
+    api.get(`/reports/${taskId}/delivery/html`, { responseType: 'blob' }),
+  deliveryPdf: (taskId: number) =>
+    api.get(`/reports/${taskId}/delivery/pdf`, { responseType: 'blob', timeout: 120000 }),
+  deliveryPackage: (taskId: number) =>
+    api.get(`/reports/${taskId}/delivery/package`, { responseType: 'blob', timeout: 120000 }),
   compare: (taskIds: number[]) =>
     api.post('/reports/compare', { task_ids: taskIds }),
 }

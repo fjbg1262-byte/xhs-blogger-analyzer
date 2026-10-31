@@ -26,14 +26,15 @@ MSG_TASK_NOT_FOUND = "\u4efb\u52a1\u4e0d\u5b58\u5728"
 MSG_TASK_CANCELLED = "\u4efb\u52a1\u5df2\u53d6\u6d88"
 MSG_TASK_NOT_RUNNING = "\u4efb\u52a1\u4e0d\u5728\u8fd0\u884c\u4e2d"
 MSG_KEYWORD_REQUIRED = "\u8bf7\u8f93\u5165\u5bf9\u6807\u641c\u7d22\u5173\u952e\u8bcd\u3002"
-MSG_TASK_NOT_COMPLETED = "请等待基础分析完成后再补充正文与标签。"
+MSG_TASK_NOT_COMPLETED = "请等待基础分析完成后再补充公开数据。"
 
 
 def _progress_meta(t: Task) -> dict:
     default_steps = [
         {"key": "prepare", "label": "准备任务", "progress": 5},
-        {"key": "collect", "label": "采集主页公开内容", "progress": 40},
-        {"key": "analyze", "label": "识别主题与互动表现", "progress": 70},
+        {"key": "collect", "label": "采集主页公开内容", "progress": 28},
+        {"key": "enrich", "label": "补充正文、媒体、评论与搜索", "progress": 70},
+        {"key": "analyze", "label": "完成八维证据分析", "progress": 84},
         {"key": "report", "label": "生成分析报告", "progress": 90},
         {"key": "finish", "label": "保存结果", "progress": 100},
     ]
@@ -48,6 +49,10 @@ def _progress_meta(t: Task) -> dict:
 
     progress = t.progress or 0
     status = t.status or "pending"
+    if t.task_type == "note_collection":
+        labels = {"completed": "整理完成", "partial": "部分完成", "cancelled": "已停止", "failed": "整理失败", "pending": "等待开始"}
+        return {"stage": labels.get(status, meta.get("stage") or "采集中"), "detail": t.error_message or meta.get("detail", ""),
+                "steps": [], "updated_at": meta.get("updated_at", ""), "is_precise": bool(meta), "progress": progress}
     if status == "completed":
         stage = "分析完成"
         detail = "报告已生成，可以查看结果。"
@@ -94,9 +99,9 @@ def _normalize_profile_url(profile_url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(status_code=400, detail=MSG_BAD_URL)
-    if "xiaohongshu.com" not in parsed.netloc:
+    if parsed.hostname not in ("xiaohongshu.com", "www.xiaohongshu.com") or parsed.username or parsed.password:
         raise HTTPException(status_code=400, detail=MSG_BAD_DOMAIN)
-    if "/user/profile/" not in parsed.path:
+    if not re.fullmatch(r"/user/profile/[A-Za-z0-9_-]{8,64}/?", parsed.path):
         raise HTTPException(status_code=400, detail=MSG_BAD_PROFILE_PATH)
     return url
 
@@ -258,12 +263,14 @@ def start_detail_fetch(
         raise HTTPException(status_code=400, detail="当前任务正在运行，请稍后再试。")
     if task.status != "completed":
         raise HTTPException(status_code=400, detail=MSG_TASK_NOT_COMPLETED)
+    if task.task_type == "note_collection":
+        raise HTTPException(status_code=400, detail="整理任务不使用旧版报告补采，请在笔记库创建新的整理任务。")
     _ensure_task_slot(db, current_user["id"])
     max_count = int((body or {}).get("max_count", 25))
     max_count = max(1, min(max_count, 30))
     task.status = "pending"
     task.progress = 0
-    task.error_message = "正在补充正文与标签分析。"
+    task.error_message = "正在补充正文、媒体、评论与搜索数据。"
     db.commit()
     db.refresh(task)
     submit_detail_enrichment(task_id, max_count=max_count)

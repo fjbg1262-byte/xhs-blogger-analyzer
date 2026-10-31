@@ -7,6 +7,16 @@ from typing import Any, Dict, List, Union
 
 PathLike = Union[str, Path]
 LOW_INFO_TOPICS = {"未归类观察", "日常随手记录", "其他/未分类", "未分类", "其他"}
+EIGHT_DIMENSION_KEYS = {
+    "positioning_audience",
+    "content_structure",
+    "title_hook",
+    "engagement_drivers",
+    "growth_trajectory",
+    "tag_search",
+    "commercial_signals",
+    "action_plan",
+}
 
 
 def _read_json(path: PathLike, default: Any):
@@ -95,7 +105,12 @@ def _check_profile(results: dict) -> List[dict]:
 def _check_data_quality(data_quality: dict, brief: dict) -> List[dict]:
     issues = []
     insufficient = {m.get("module") for m in brief.get("insufficient_modules", [])}
-    if data_quality.get("tag_completeness", 0) < 0.5 and "标签与SEO" not in insufficient:
+    tag_ready = data_quality.get("tag_analysis_ready", data_quality.get("tag_completeness", 0) >= 0.5)
+    content_ready = data_quality.get("content_analysis_ready", data_quality.get("content_text_completeness", 0) >= 0.5)
+    comment_ready = data_quality.get("comment_analysis_ready", data_quality.get("comment_completeness", 0) >= 0.5)
+    media_ready = data_quality.get("media_analysis_ready", False)
+    search_ready = data_quality.get("search_analysis_ready", False)
+    if not tag_ready and "标签与SEO" not in insufficient:
         issues.append(
             _issue(
                 "missing_tag_downgrade",
@@ -104,7 +119,7 @@ def _check_data_quality(data_quality: dict, brief: dict) -> List[dict]:
                 "brief.insufficient_modules",
             )
         )
-    if data_quality.get("content_text_completeness", 0) < 0.5 and "正文结构" not in insufficient:
+    if not content_ready and "正文结构" not in insufficient:
         issues.append(
             _issue(
                 "missing_content_text_downgrade",
@@ -113,7 +128,7 @@ def _check_data_quality(data_quality: dict, brief: dict) -> List[dict]:
                 "brief.insufficient_modules",
             )
         )
-    if data_quality.get("comment_completeness", 0) < 0.5 and "评论与用户痛点" not in insufficient:
+    if not comment_ready and "评论与用户痛点" not in insufficient:
         issues.append(
             _issue(
                 "missing_comment_downgrade",
@@ -122,11 +137,29 @@ def _check_data_quality(data_quality: dict, brief: dict) -> List[dict]:
                 "brief.insufficient_modules",
             )
         )
-    if data_quality.get("topic_unclassified_pct", 0) > 50:
+    if not media_ready and "媒体结构" not in insufficient:
+        issues.append(
+            _issue(
+                "missing_media_downgrade",
+                "媒体数据不足，但 brief 未标记媒体结构降级。",
+                "blocking",
+                "brief.insufficient_modules",
+            )
+        )
+    if not search_ready and "搜索表达" not in insufficient:
+        issues.append(
+            _issue(
+                "missing_search_downgrade",
+                "搜索研究数据不足，但 brief 未标记搜索表达降级。",
+                "blocking",
+                "brief.insufficient_modules",
+            )
+        )
+    if data_quality.get("topic_unclassified_pct", 0) > 35:
         issues.append(
             _issue(
                 "topic_unclassified_high",
-                "主题未归类比例超过 50%，主题类强结论应降级。",
+                "主题未归类比例超过 35%，主题类强结论应降级。",
                 "blocking" if any("主线" in i.get("title", "") for i in brief.get("strong_insights", [])) else "warning",
                 "data_quality.topic_unclassified_pct",
             )
@@ -140,6 +173,96 @@ def _check_data_quality(data_quality: dict, brief: dict) -> List[dict]:
                 "data_quality.deduped_note_count",
             )
         )
+    return issues
+
+
+def _check_eight_dimensions(brief: dict) -> List[dict]:
+    issues = []
+    dimensions = brief.get("eight_dimensions") or {}
+    missing = sorted(EIGHT_DIMENSION_KEYS - set(dimensions))
+    if missing:
+        issues.append(
+            _issue(
+                "missing_eight_dimensions",
+                "八维交付缺少模块：%s" % "、".join(missing),
+                "blocking",
+                "brief.eight_dimensions",
+            )
+        )
+    evidence_ids = _collect_evidence_ids(brief)
+    for key in sorted(EIGHT_DIMENSION_KEYS & set(dimensions)):
+        item = dimensions.get(key) or {}
+        path = f"brief.eight_dimensions.{key}"
+        if item.get("status") not in ("ready", "limited"):
+            issues.append(_issue("dimension_invalid_status", f"{key} 缺少有效状态。", "blocking", path))
+        if not item.get("sources"):
+            issues.append(_issue("dimension_missing_sources", f"{key} 未说明数据来源。", "blocking", path))
+        if not item.get("findings"):
+            issues.append(_issue("dimension_missing_findings", f"{key} 没有形成可读结论。", "blocking", path))
+        if not item.get("limits"):
+            issues.append(_issue("dimension_missing_limits", f"{key} 未声明分析边界。", "blocking", path))
+        unknown = [note_id for note_id in item.get("evidence_note_ids", []) if note_id not in evidence_ids]
+        if unknown:
+            issues.append(
+                _issue(
+                    "dimension_unknown_evidence",
+                    f"{key} 引用了证据池中不存在的笔记：{'、'.join(unknown[:3])}",
+                    "blocking",
+                    path,
+                )
+            )
+
+    ai = brief.get("ai_enhancement") or {}
+    if ai.get("enabled"):
+        ai_dimensions = ai.get("dimensions") or {}
+        for key, item in ai_dimensions.items():
+            path = f"brief.ai_enhancement.dimensions.{key}"
+            if key not in EIGHT_DIMENSION_KEYS:
+                issues.append(_issue("ai_unknown_dimension", f"AI 返回了未知维度 {key}。", "blocking", path))
+                continue
+            unknown = [note_id for note_id in item.get("evidence_note_ids", []) if note_id not in evidence_ids]
+            if unknown:
+                issues.append(
+                    _issue(
+                        "ai_unknown_evidence",
+                        f"AI 结论引用了不存在的笔记：{'、'.join(unknown[:3])}",
+                        "blocking",
+                        path,
+                    )
+                )
+    return issues
+
+
+def _check_dimension_reliability(data_quality: dict, brief: dict) -> List[dict]:
+    """Stop weak upstream analysis from becoming confident client advice."""
+    issues = []
+    dimensions = brief.get("eight_dimensions") or {}
+    unclassified_pct = data_quality.get("topic_unclassified_pct", 0) or 0
+    if unclassified_pct > 35:
+        for key in ("positioning_audience", "content_structure", "action_plan"):
+            item = dimensions.get(key) or {}
+            if item.get("status") == "ready" or item.get("confidence") in ("medium", "high"):
+                issues.append(
+                    _issue(
+                        "unreliable_topic_used_by_dimension",
+                        f"主题未归类占比为 {unclassified_pct}%，但 {key} 仍输出了确定结论。",
+                        "blocking",
+                        f"brief.eight_dimensions.{key}",
+                    )
+                )
+
+    tag_ready = data_quality.get("tag_analysis_ready", False)
+    tag_search = dimensions.get("tag_search") or {}
+    if not tag_ready and tag_search.get("confidence") in ("medium", "high"):
+        issues.append(
+            _issue(
+                "tag_search_overconfident",
+                "标签样本不足，但标签与搜索维度仍被标记为中高置信。",
+                "blocking",
+                "brief.eight_dimensions.tag_search",
+            )
+        )
+
     return issues
 
 
@@ -234,25 +357,91 @@ def _check_insights(brief: dict) -> List[dict]:
 def _check_patterns(brief: dict) -> List[dict]:
     issues = []
     for idx, pattern in enumerate(brief.get("title_patterns", {}).get("recommended", [])):
-        if pattern.get("count", 0) < 3 or pattern.get("vs_overall_pct", 0) <= 20:
+        if (
+            pattern.get("count", 0) < 5
+            or pattern.get("vs_overall_pct", 0) <= 20
+            or pattern.get("vs_median_pct", 0) <= 10
+        ):
             issues.append(
                 _issue(
                     "recommended_pattern_below_threshold",
-                    "推荐标题模式未达到 count>=3 且 vs_overall_pct>20 的门槛。",
+                    "推荐标题模式未达到 count>=5、均值提升>20% 且中位数提升>10% 的门槛。",
                     "blocking",
                     "brief.title_patterns.recommended[%s]" % idx,
                 )
             )
     for idx, pattern in enumerate(brief.get("title_patterns", {}).get("avoid", [])):
-        if pattern.get("count", 0) < 3 or pattern.get("vs_overall_pct", 0) >= -30:
+        if (
+            pattern.get("count", 0) < 5
+            or pattern.get("vs_overall_pct", 0) >= -30
+            or pattern.get("vs_median_pct", 0) >= -10
+        ):
             issues.append(
                 _issue(
                     "avoid_pattern_below_threshold",
-                    "避坑标题模式未达到 count>=3 且 vs_overall_pct<-30 的门槛。",
+                    "避坑标题模式未达到 count>=5、均值下降<-30% 且中位数下降<-10% 的门槛。",
                     "warning",
                     "brief.title_patterns.avoid[%s]" % idx,
                 )
             )
+    return issues
+
+
+REQUIRED_REPORTS = {
+    "00_博主画像卡片.md",
+    "01_内容结构分析.md",
+    "02_标题与文案分析.md",
+    "03_互动归因分析.md",
+    "04_成长轨迹分析.md",
+    "05_标签与SEO分析.md",
+    "06_商业化分析.md",
+    "07_竞争定位分析.md",
+    "08_策略建议与行动计划.md",
+}
+
+FORBIDDEN_REPORT_PHRASES = {
+    "深度内容更易引爆": "正文长度相关性被写成因果",
+    "增长爆发期": "公开笔记数据不能证明账号增长阶段",
+    "成熟运营期": "公开笔记数据不能证明账号成熟阶段",
+    "粉丝基础和传播力在持续增长": "缺少粉丝与曝光历史数据",
+    "早期爆款和后期爆款的差距表明受众规模在扩大": "缺少受众规模历史数据",
+    "搜索量极低": "缺少平台搜索量数据",
+    "核心固定组合（高频标签）": "标签频次不能直接生成固定 SEO 组合",
+    "当前处于早期商业化阶段": "公开内容信号不能证明商业化阶段",
+}
+
+
+def _check_report_files(reports_dir: Any) -> List[dict]:
+    if not reports_dir:
+        return []
+    root = Path(reports_dir)
+    issues = []
+    missing = sorted(name for name in REQUIRED_REPORTS if not (root / name).exists())
+    if missing:
+        issues.append(
+            _issue(
+                "missing_report_dimensions",
+                "完整交付缺少报告维度：%s" % "、".join(missing),
+                "blocking",
+                "reports",
+            )
+        )
+    for path in root.glob("*.md") if root.exists() else []:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            issues.append(_issue("unreadable_report", f"无法读取 {path.name}", "blocking", str(path)))
+            continue
+        for phrase, reason in FORBIDDEN_REPORT_PHRASES.items():
+            if phrase in content:
+                issues.append(
+                    _issue(
+                        "unsupported_report_claim",
+                        f"{path.name} 包含不受数据支持的表述“{phrase}”：{reason}。",
+                        "blocking",
+                        str(path),
+                    )
+                )
     return issues
 
 
@@ -282,6 +471,7 @@ def run_report_quality_check(
     brief_path: PathLike,
     output_path: PathLike,
     data_quality_path: Any = None,
+    reports_dir: Any = None,
 ) -> Dict[str, Any]:
     """Run report quality checks and write report_quality_check.json."""
     results = _read_json(results_path, {})
@@ -300,9 +490,12 @@ def run_report_quality_check(
         issues.extend(_check_profile(results))
     if brief:
         issues.extend(_check_data_quality(data_quality, brief))
+        issues.extend(_check_eight_dimensions(brief))
+        issues.extend(_check_dimension_reliability(data_quality, brief))
         issues.extend(_check_topics(brief))
         issues.extend(_check_insights(brief))
         issues.extend(_check_patterns(brief))
+    issues.extend(_check_report_files(reports_dir))
 
     blocking = [i for i in issues if i["severity"] == "blocking"]
     warnings = [i for i in issues if i["severity"] != "blocking"]
@@ -317,6 +510,10 @@ def run_report_quality_check(
             "warning_count": len(warnings),
             "result_readable": bool(results),
             "brief_readable": bool(brief),
+            "all_report_dimensions_present": not any(i["code"] == "missing_report_dimensions" for i in issues),
+            "unsupported_claims_absent": not any(i["code"] == "unsupported_report_claim" for i in issues),
+            "eight_dimensions_complete": not any(i["code"].startswith("dimension_") or i["code"] == "missing_eight_dimensions" for i in issues),
+            "ai_evidence_valid": not any(i["code"].startswith("ai_") for i in issues),
         },
     }
     _write_json(output_path, result)

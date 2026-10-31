@@ -18,6 +18,7 @@ $backendLog = Join-Path $logsDir "backend.log"
 $backendErr = Join-Path $logsDir "backend.err.log"
 $setupLog = Join-Path $logsDir "setup.log"
 $setupErr = Join-Path $logsDir "setup.err.log"
+$expectedReportRenderer = "customer-eight-dimension-v2"
 
 function Write-Title($Text) {
   Write-Host ""
@@ -137,6 +138,14 @@ function Test-Url($Url) {
   }
 }
 
+function Get-HealthInfo {
+  try {
+    return Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -TimeoutSec 2
+  } catch {
+    return $null
+  }
+}
+
 function Wait-Url($Url, $Seconds) {
   $deadline = (Get-Date).AddSeconds($Seconds)
   while ((Get-Date) -lt $deadline) {
@@ -149,8 +158,12 @@ function Wait-Url($Url, $Seconds) {
 }
 
 function Test-PortFreeOrExpected($Port, $HealthUrl, $ServiceName) {
-  if (Test-Url $HealthUrl) {
-    return "ready"
+  $health = Get-HealthInfo
+  if ($health) {
+    if ($health.organizer_schema -eq '1.0') {
+      return "ready"
+    }
+    Fail-User "Old local tool is still running" "Double-click 关闭本地工具.bat, then run start_windows.bat again. Existing tasks will not be deleted."
   }
 
   if (Test-TcpPort "127.0.0.1" $Port) {

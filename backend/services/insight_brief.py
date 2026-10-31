@@ -163,12 +163,12 @@ def _annotate_evidence_notes(evidence_notes: list[dict], *item_groups: tuple[str
             titles = "、".join([u["title"] for u in usage[:2] if u.get("title")])
             note["evidence_reason"] = (
                 f"这条样本被「{titles}」引用。它的主题是「{note.get('topic', '未归类')}」，"
-                f"互动表现为 {note.get('likes', 0)} 赞；系统优先按相关范围内点赞数选择代表样本，"
+                f"公开点赞数为 {note.get('likes', 0)}；系统优先按相关范围内点赞数选择代表样本，"
                 "不是按发布时间排序。"
             )
         else:
             note["evidence_reason"] = (
-                f"这条样本在本次数据中互动较高，主题是「{note.get('topic', '未归类')}」，"
+                f"这条样本在本次数据中公开点赞数较高，主题是「{note.get('topic', '未归类')}」，"
                 "属于默认高赞证据池，适合用来观察账号的高表现内容特征。"
             )
     return evidence_notes
@@ -176,14 +176,40 @@ def _annotate_evidence_notes(evidence_notes: list[dict], *item_groups: tuple[str
 
 def _attach_seven_day_plan(actions: list[dict]) -> list[dict]:
     for action in actions:
+        source = str(action.get("source_insight_id") or "")
+        if "title" in source:
+            plan = [
+                ("拆解证据标题", "记录对象、场景、信息量和表达结构，不只抄句式。"),
+                ("写 10 个标题草稿", "同一个选题保留不同表达，避免同时改变选题和标题。"),
+                ("筛出 3 个可测试版本", "删除空泛悬念，保留具体对象和可验证信息。"),
+                ("完成对应内容", "确保正文真正兑现标题，不制造超额承诺。"),
+                ("发布 1 篇测试", "记录标题、主题、发布时间和公开互动数据。"),
+                ("与账号中位数比较", "先看是否超过稳定基线，再看是否出现异常高值。"),
+                ("保留或停止该写法", "至少积累 3 次新测试后再决定是否扩大使用。"),
+            ]
+        elif "topic" in source:
+            plan = [
+                ("拆解主题证据", "记录高表现样本共同覆盖的对象、场景和问题。"),
+                ("列出 10 个相邻问题", "只扩展同一受众会继续关心的问题。"),
+                ("筛出 3 个差异化选题", "避免重复旧内容，明确每篇新增的信息。"),
+                ("为首篇建立大纲", "把开头、论据、结论和行动提示写清楚。"),
+                ("发布首篇测试", "保持其他变量尽量稳定，记录公开表现。"),
+                ("复盘证据差异", "与该主题历史中位数比较，不只看全账号均值。"),
+                ("决定下一轮", "有效则继续两篇，无效则回到证据重新选题。"),
+            ]
+        else:
+            plan = [
+                ("复核高表现样本", "把高表现与普通表现分开观察。"),
+                ("确定一个测试变量", "一次只改变主题、标题或内容结构中的一项。"),
+                ("设定比较基线", "使用账号中位数和同主题历史表现。"),
+                ("完成测试内容", "保留清晰的记录字段。"),
+                ("发布并记录", "记录公开点赞、收藏和评论中实际可得的数据。"),
+                ("比较结果", "判断变化是否连续出现，而不是追逐单篇异常值。"),
+                ("更新下一轮", "保留有效变量，停止没有证据支持的动作。"),
+            ]
         action["seven_day_plan"] = [
-            {"day": 1, "task": "拆 3 条证据样本", "goal": "记录对象、场景、标题承诺和结果反差。"},
-            {"day": 2, "task": "写 10 个相邻选题", "goal": "围绕本建议筛出 3 个最具体、最容易执行的方向。"},
-            {"day": 3, "task": "每个选题写 5 个标题", "goal": "保留具体对象、时间锚、成本或结果承诺。"},
-            {"day": 4, "task": "完成 1 篇内容大纲", "goal": "把开头、主体、结尾和行动提示写清楚。"},
-            {"day": 5, "task": "发布并记录初始数据", "goal": "记录发布时间、标题、主题、点赞和评论反馈。"},
-            {"day": 6, "task": "复盘标题和选题反馈", "goal": "比较中位数、爆款率和评论里的真实问题。"},
-            {"day": 7, "task": "决定放大或停止", "goal": "保留有效变量，停止低表现或数据不足的方向。"},
+            {"day": index + 1, "task": task, "goal": goal}
+            for index, (task, goal) in enumerate(plan)
         ]
     return actions
 
@@ -199,22 +225,32 @@ def _best_topic(results: dict):
     profile = results.get("profile", {})
     overall_avg = profile.get("avg_likes", 0) or 0
     data_quality = results.get("data_quality", {})
-    if data_quality.get("topic_unclassified_pct", 0) > 50:
+    if data_quality.get("topic_unclassified_pct", 0) > 35:
         return None
     candidates = []
     for name, topic in results.get("topic_distribution", {}).items():
         if _is_low_info_topic(name):
             continue
-        if topic.get("count", 0) < 5:
+        if topic.get("count", 0) < 8:
             continue
         if topic.get("confidence") == "low":
             continue
-        if topic.get("avg_likes", 0) < overall_avg * 1.15:
+        overall_median = profile.get("median_likes", 0) or 0
+        avg_signal = topic.get("avg_likes", 0) >= overall_avg * 1.15
+        median_signal = bool(overall_median) and topic.get("median_likes", 0) >= overall_median * 1.5
+        if not (avg_signal or median_signal):
             continue
         candidates.append((name, topic))
     if not candidates:
         return None
-    return max(candidates, key=lambda item: item[1].get("avg_likes", 0))
+    return max(
+        candidates,
+        key=lambda item: (
+            item[1].get("median_likes", 0),
+            item[1].get("avg_likes", 0),
+            item[1].get("count", 0),
+        ),
+    )
 
 
 def _recommended_title_patterns(results: dict, all_notes: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -225,7 +261,9 @@ def _recommended_title_patterns(results: dict, all_notes: list[dict]) -> tuple[l
             "name": name,
             "count": payload.get("count", 0),
             "avg_likes": payload.get("avg_likes", 0),
+            "median_likes": payload.get("median_likes", 0),
             "vs_overall_pct": payload.get("vs_overall_pct", 0),
+            "vs_median_pct": payload.get("vs_median_pct", 0),
             "burst_rate": payload.get("burst_rate", 0),
             "sample_titles": payload.get("sample", []),
             "top_title": payload.get("top", ""),
@@ -234,10 +272,10 @@ def _recommended_title_patterns(results: dict, all_notes: list[dict]) -> tuple[l
                 payload.get("sample", []) + [payload.get("top", "")],
             ),
         }
-        if item["count"] >= 3 and item["vs_overall_pct"] > 20:
+        if item["count"] >= 5 and item["vs_overall_pct"] > 20 and item["vs_median_pct"] > 10:
             item["recommendation"] = "recommended"
             recommended.append(item)
-        elif item["count"] >= 3 and item["vs_overall_pct"] < -30:
+        elif item["count"] >= 5 and item["vs_overall_pct"] < -30 and item["vs_median_pct"] < -10:
             item["recommendation"] = "avoid"
             avoid.append(item)
     recommended.sort(key=lambda x: x["avg_likes"], reverse=True)
@@ -247,7 +285,10 @@ def _recommended_title_patterns(results: dict, all_notes: list[dict]) -> tuple[l
 
 def _insufficient_modules(data_quality: dict) -> list[dict]:
     modules = []
-    if data_quality.get("tag_completeness", 0) < 0.5:
+    tag_ready = data_quality.get("tag_analysis_ready")
+    if tag_ready is None:
+        tag_ready = data_quality.get("tag_completeness", 0) >= 0.5
+    if not tag_ready:
         modules.append(
             {
                 "module": "标签与SEO",
@@ -255,7 +296,10 @@ def _insufficient_modules(data_quality: dict) -> list[dict]:
                 "impact": "SEO 建议降级为数据不足提示。",
             }
         )
-    if data_quality.get("content_text_completeness", 0) < 0.5:
+    content_ready = data_quality.get("content_analysis_ready")
+    if content_ready is None:
+        content_ready = data_quality.get("content_text_completeness", 0) >= 0.5
+    if not content_ready:
         modules.append(
             {
                 "module": "正文结构",
@@ -263,7 +307,10 @@ def _insufficient_modules(data_quality: dict) -> list[dict]:
                 "impact": "正文模板暂不进入强建议。",
             }
         )
-    if data_quality.get("comment_completeness", 0) < 0.5:
+    comment_ready = data_quality.get("comment_analysis_ready")
+    if comment_ready is None:
+        comment_ready = data_quality.get("comment_completeness", 0) >= 0.5
+    if not comment_ready:
         modules.append(
             {
                 "module": "评论与用户痛点",
@@ -271,7 +318,23 @@ def _insufficient_modules(data_quality: dict) -> list[dict]:
                 "impact": "用户画像和互动归因只做弱推断。",
             }
         )
-    if data_quality.get("topic_unclassified_pct", 0) > 50:
+    if not data_quality.get("media_analysis_ready", False):
+        modules.append(
+            {
+                "module": "媒体结构",
+                "reason": "图片或视频详情样本不足，不能稳定判断内容载体与信息密度。",
+                "impact": "媒体部分只保留已采集字段，不输出视觉风格强结论。",
+            }
+        )
+    if not data_quality.get("search_analysis_ready", False):
+        modules.append(
+            {
+                "module": "搜索表达",
+                "reason": "关键词联想或公开搜索结果样本不足。",
+                "impact": "只展示详情标签，不输出搜索表达强建议。",
+            }
+        )
+    if data_quality.get("topic_unclassified_pct", 0) > 35:
         modules.append(
             {
                 "module": "主题分类",
@@ -297,6 +360,8 @@ def build_insight_brief(
 
     profile = results.get("profile", {})
     engagement = results.get("engagement", {})
+    eight_dimensions = results.get("eight_dimensions", {})
+    ai_enhancement = results.get("ai_enhancement", {})
     best_topic = _best_topic(results)
     recommended_patterns, avoid_patterns = _recommended_title_patterns(results, all_notes)
     evidence_notes = _evidence_notes(all_notes, results)
@@ -304,15 +369,15 @@ def build_insight_brief(
     if best_topic:
         topic_name, topic_payload = best_topic
         one_sentence = (
-            f"这个账号目前最值得学习的是「{topic_name}」："
-            f"{topic_payload.get('count', 0)} 篇样本，均赞 {topic_payload.get('avg_likes', 0)}，"
-            f"爆款率 {topic_payload.get('burst_rate', 0)}%。"
+            f"当前公开样本中，「{topic_name}」是更值得优先验证的内容方向："
+            f"{topic_payload.get('count', 0)} 篇，点赞中位数 {topic_payload.get('median_likes', 0)}，"
+            f"均赞 {topic_payload.get('avg_likes', 0)}。"
         )
-        positioning = f"以{topic_name}为核心的内容观察型账号"
+        positioning = f"内容主线观察：{topic_name}"
     else:
         topic_name, topic_payload = "", {}
         one_sentence = "本次数据暂未形成稳定的高表现主题，需要先改善主题分类或补充样本。"
-        positioning = "内容观察型账号"
+        positioning = "内容主线尚待验证"
 
     strong_insights = []
     weak_insights = []
@@ -325,22 +390,23 @@ def build_insight_brief(
         strong_insights.append(
             {
                 "id": insight_id,
-                "title": f"{topic_name}是当前最强内容主线",
+                "title": f"「{topic_name}」在当前样本中表现相对更高",
                 "summary": (
-                    f"该主题均赞 {topic_payload.get('avg_likes', 0)}，"
-                    f"是整体均赞 {profile.get('avg_likes', 0)} 的 "
-                    f"{round(topic_payload.get('avg_likes', 0) / max(profile.get('avg_likes', 1), 1), 1)} 倍。"
+                    f"该主题共 {topic_payload.get('count', 0)} 篇，点赞中位数 "
+                    f"{topic_payload.get('median_likes', 0)}、均值 {topic_payload.get('avg_likes', 0)}；"
+                    f"整体中位数为 {profile.get('median_likes', 0)}。"
                 ),
-                "confidence": topic_payload.get("confidence", "medium"),
+                "confidence": "medium",
                 "sample_size": topic_payload.get("count", 0),
                 "metric": {
                     "avg_likes": topic_payload.get("avg_likes", 0),
+                    "median_likes": topic_payload.get("median_likes", 0),
                     "burst_rate": topic_payload.get("burst_rate", 0),
                     "above_avg_rate": topic_payload.get("above_avg_rate", 0),
                 },
                 "evidence_note_ids": top_note_ids,
                 "evidence_rule": "在该主题内按点赞数从高到低选取代表样本。",
-                "why_it_matters": "这说明用户更容易被该主题里的明确对象、场景或反差感吸引。",
+                "why_it_matters": "这是值得继续测试的相关性线索，但不能仅凭公开点赞证明主题本身造成了高表现。",
                 "action": f"围绕「{topic_name}」继续测试 3-5 个相邻选题，不要先扩散到泛内容。",
             }
         )
@@ -365,20 +431,22 @@ def build_insight_brief(
         strong_insights.append(
             {
                 "id": insight_id,
-                "title": f"标题公式「{pattern['name']}」表现显著更好",
+                "title": f"标题模式「{pattern['name']}」与较高点赞表现相关",
                 "summary": (
-                    f"该公式 {pattern['count']} 篇样本，均赞 {pattern['avg_likes']}，"
-                    f"相对整体 {pattern['vs_overall_pct']:+.1f}%。"
+                    f"该模式 {pattern['count']} 篇，点赞中位数 {pattern['median_likes']}，"
+                    f"相对整体中位数 {pattern['vs_median_pct']:+.1f}%；均赞相对整体 {pattern['vs_overall_pct']:+.1f}%。"
                 ),
-                "confidence": "high" if pattern["count"] >= 5 else "medium",
+                "confidence": "medium",
                 "sample_size": pattern["count"],
                 "metric": {
                     "avg_likes": pattern["avg_likes"],
+                    "median_likes": pattern["median_likes"],
                     "vs_overall_pct": pattern["vs_overall_pct"],
+                    "vs_median_pct": pattern["vs_median_pct"],
                     "burst_rate": pattern["burst_rate"],
                 },
                 "evidence_note_ids": pattern["evidence_note_ids"],
-                "why_it_matters": "标题里的时间锚、对象和结果承诺能降低理解成本，也更容易制造反差。",
+                "why_it_matters": "这表示该表达方式值得做受控测试，不代表标题句式单独导致了高点赞。",
                 "action": f"优先测试「{pattern['name']}」标题，但不要套用低表现标题公式。",
             }
         )
@@ -401,8 +469,8 @@ def build_insight_brief(
         strong_insights.append(
             {
                 "id": "insight_engagement_1",
-                "title": "账号互动高度依赖少数爆款",
-                "summary": f"Top {pareto_pct}% 笔记贡献了 80% 点赞，说明账号是爆款驱动型。",
+                "title": "公开点赞高度集中在少数笔记",
+                "summary": f"Top {pareto_pct}% 笔记贡献了 80% 公开点赞，账号表现分布不均。",
                 "confidence": "high",
                 "sample_size": profile.get("total_notes", 0),
                 "metric": {
@@ -410,7 +478,7 @@ def build_insight_brief(
                     "top10pct_share": engagement.get("top10pct_share", 0),
                 },
                 "evidence_note_ids": [n["note_id"] for n in evidence_notes[:5]],
-                "why_it_matters": "新手不应照抄全量内容，而应优先学习爆款样本里的可复用变量。",
+                "why_it_matters": "复盘时应同时看高赞样本和账号中位数，避免被少数异常值带偏。",
                 "action": "复盘时把爆款样本单独拆，不要用平均值代表整个账号。",
             }
         )
@@ -442,6 +510,36 @@ def build_insight_brief(
         )
 
     recommended_actions = _attach_seven_day_plan(recommended_actions)
+    dimension_labels = {
+        "positioning_audience": "定位受众",
+        "content_structure": "内容结构",
+        "title_hook": "标题 Hook",
+        "engagement_drivers": "互动归因",
+        "growth_trajectory": "成长轨迹",
+        "tag_search": "标签搜索",
+        "commercial_signals": "商业信号",
+        "action_plan": "行动建议",
+    }
+    dimension_items = [
+        {
+            "id": f"dimension_{key}",
+            "title": dimension_labels.get(key, key),
+            "evidence_note_ids": item.get("evidence_note_ids", []),
+        }
+        for key, item in eight_dimensions.items()
+        if isinstance(item, dict)
+    ]
+    ai_dimension_items = []
+    for key, item in (ai_enhancement.get("dimensions") or {}).items():
+        if not isinstance(item, dict):
+            continue
+        ai_dimension_items.append(
+            {
+                "id": f"ai_{key}",
+                "title": item.get("summary", "AI增强解读")[:60],
+                "evidence_note_ids": item.get("evidence_note_ids", []),
+            }
+        )
     evidence_notes = _complete_evidence_notes(
         evidence_notes,
         all_notes,
@@ -449,16 +547,20 @@ def build_insight_brief(
         strong_insights,
         recommended_actions,
         avoid_actions,
+        dimension_items,
+        ai_dimension_items,
     )
     evidence_notes = _annotate_evidence_notes(
         evidence_notes,
         ("洞察", strong_insights),
         ("行动", recommended_actions),
         ("避坑", avoid_actions),
+        ("八维", dimension_items),
+        ("AI增强", ai_dimension_items),
     )
 
     brief = {
-        "version": "0.1",
+        "version": "0.2",
         "account_summary": {
             "nickname": profile.get("nickname", ""),
             "user_id": profile.get("user_id", ""),
@@ -469,6 +571,9 @@ def build_insight_brief(
             "one_sentence": one_sentence,
             "learnability": "high" if best_topic and topic_payload.get("burst_rate", 0) >= 30 else "medium",
             "data_confidence": data_quality.get("overall_grade", "medium"),
+            "ai_status": ai_enhancement.get("status", "not_requested"),
+            "ai_model": ai_enhancement.get("model", ""),
+            "ai_multimodal": ai_enhancement.get("multimodal", False),
         },
         "data_quality": data_quality,
         "strong_insights": strong_insights,
@@ -487,6 +592,8 @@ def build_insight_brief(
         "recommended_actions": recommended_actions,
         "avoid_actions": avoid_actions,
         "insufficient_modules": _insufficient_modules(data_quality),
+        "eight_dimensions": eight_dimensions,
+        "ai_enhancement": ai_enhancement,
     }
     _write_json(output_path, brief)
     return brief
