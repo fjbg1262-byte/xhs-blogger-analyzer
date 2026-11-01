@@ -1,15 +1,16 @@
 <template>
-  <div class="app-container">
-    <header class="app-header">
+  <div class="app-container" :class="{ 'demo-mode': route.meta.standalone }">
+    <header v-if="!route.meta.standalone" class="app-header">
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true">析</div>
         <div class="brand-copy">
           <strong>内容整理与 AI 交付</strong>
-          <span>0.3.0-beta.5 工作台</span>
+          <span>0.3.0-beta.6 工作台</span>
         </div>
       </div>
       <nav class="header-nav">
         <template v-if="isAuthenticated()">
+          <router-link to="/demo"><span class="nav-icon" aria-hidden="true">▦</span>产品演示</router-link>
           <router-link to="/library"><span class="nav-icon" aria-hidden="true">▤</span>笔记库</router-link>
           <router-link to="/history"><span class="nav-icon" aria-hidden="true">◷</span>旧版报告记录</router-link>
           <router-link to="/settings"><span class="nav-icon" aria-hidden="true">⚙</span>设置</router-link>
@@ -21,19 +22,20 @@
         <router-link v-else to="/login"><span class="nav-icon" aria-hidden="true">↪</span>登录</router-link>
       </nav>
     </header>
-    <main class="app-main">
+    <main class="app-main" :class="{ 'demo-main': route.meta.standalone }">
       <router-view />
     </main>
-    <TelemetryConsent />
+    <TelemetryConsent v-if="!route.meta.standalone" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { clearAuth, currentUsername, isAuthenticated } from './auth'
 import TelemetryConsent from './components/TelemetryConsent.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 function logout() {
   clearAuth()
@@ -66,6 +68,7 @@ body {
   letter-spacing: 0;
 }
 .app-container { min-height: 100vh; display: flex; flex-direction: column; }
+.app-container.demo-mode { display: block; background: #f6f8fb; }
 .app-header {
   background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid var(--line);
@@ -136,6 +139,7 @@ body {
   width: 100%;
   margin: 0 auto;
 }
+.app-main.demo-main { padding: 0; max-width: none; margin: 0; }
 .card {
   background: var(--surface);
   border: 1px solid var(--line);

@@ -234,7 +234,7 @@ def xlsx_bytes(dataset, rows, feishu=False):
     if not feishu:
         info = wb.create_sheet("采集说明")
         notes = [
-            ("产品", "小红书内容整理器与 AI 交付 0.3.0-beta.5"),
+            ("产品", "小红书内容整理器与 AI 交付 0.3.0-beta.6"),
             ("口径", "主页返回顺序最多100篇；含置顶。不宣称是严格按时间排列的全账号最新100篇。"),
             ("任务状态", dataset.get("status", "")),
             ("停止原因", dataset.get("stop_reason", "")),

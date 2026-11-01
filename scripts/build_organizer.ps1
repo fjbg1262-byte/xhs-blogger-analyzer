@@ -1,5 +1,5 @@
 param(
-  [string]$Version = '0.3.0-beta.5',
+  [string]$Version = '0.3.0-beta.6',
   [string]$Python = '',
   [switch]$SkipFrontend
 )
@@ -52,5 +52,6 @@ Copy-Item -LiteralPath (Get-Command node).Source -Destination (Join-Path $packag
 if ($LASTEXITCODE -ne 0) { throw 'Packaged self-check failed' }
 & $Python (Join-Path $PSScriptRoot 'release_source.py') scan --out $package
 if ($LASTEXITCODE -ne 0) { throw 'Package contains runtime data' }
-Compress-Archive -Path (Join-Path $package '*') -DestinationPath "$package.zip"
+& $Python (Join-Path $PSScriptRoot 'zip_release.py') --root $package --out "$package.zip"
+if ($LASTEXITCODE -ne 0) { throw 'Zip creation failed' }
 Write-Output "Package ready: $package.zip"

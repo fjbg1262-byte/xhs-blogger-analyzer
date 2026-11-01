@@ -2,7 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { isAuthenticated } from '../auth'
 
 const routes = [
-  { path: '/', redirect: '/library' },
+  { path: '/', redirect: '/demo' },
+  {
+    path: '/demo',
+    name: 'ProductDemo',
+    component: () => import('../views/ProductDemoView.vue'),
+    meta: { public: true, standalone: true },
+  },
   { path: '/library', name: 'Library', component: () => import('../views/LibraryView.vue') },
   {
     path: '/login',
@@ -67,7 +73,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const publicPaths = ['/login', '/extension-login']
+  const publicPaths = ['/login', '/extension-login', '/demo']
   if (!publicPaths.includes(to.path) && !isAuthenticated()) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }

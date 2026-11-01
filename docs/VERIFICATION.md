@@ -1,4 +1,21 @@
-# 0.3.0-beta.5 验证记录
+# 0.3.0-beta.6 验证记录
+
+## Phase 1 前端 Demo（2026-11-01）
+
+- 前端 `vue-tsc && vite build`：通过；构建产物包含 `ProductDemoView` 独立分包。
+- 无头 Edge 点击验收 `tests/browser/demo-smoke.cjs`：**29/29 通过**。
+- 覆盖项：首页入口、采集进度计数、停止采集、停止保留数据、继续处理未完成、采集完成提示、单篇详情、来源链接、封面视图、互动较高分类、筛选面板、只看未完成筛选、未完成原因、八维卡片、3 个选题、维度建议展开、选题大纲、对标表 9 行、3 账号动态列宽、一周内容计划、飞书导入包生成、采集记录 4 行、完成时间、未完成原因、设置 4 张卡片、`?page=` 深链接、导航同步地址栏。
+- 视觉复核：1440×1000 与 1280×860 两种宽度截图检查首页、笔记库、八维、对标、飞书、采集记录；无横向溢出，工具栏按钮不换行。
+- 截图与脚本：`tests/browser/demo-smoke.cjs`、`tests/browser/demo-shots.cjs`（输出 `demo-shots/`）。
+- Demo 使用模拟数据，本记录不证明真实采集、真实飞书导入或模型质量。
+
+## beta.6 打包与入口（2026-11-01）
+
+- `scripts/build_organizer.ps1 -Version 0.3.0-beta.6`：源码快照、PyInstaller 打包、自检 `SELF_CHECK_OK`、运行数据扫描通过，发布目录 1754 个文件。
+- 修复 ZIP 生成：`Compress-Archive` 在 200MB 级目录上抛 `OutOfMemoryException`，只写出 1613 条记录且缺根目录文件，部分 .NET 版本还会写入反斜杠路径。改用新增的 `scripts/zip_release.py`（Python zipfile 流式写入正斜杠）后，ZIP 为 1754 条记录、无 `\` 路径、逐条可解压读取。
+- 用打包后的 `XHS-Organizer.exe --xhs-serve 8123` 启动验证：`/api/health` 返回 `app_version=0.3.0-beta.6`、`organizer_schema=1.0`、`spider_xhs_available=true`；`/`、`/demo`、`/demo?page=compare` 均返回前端 SPA，`/assets/index-*.js` 返回 200。
+- 对打包实例重跑 `tests/browser/demo-smoke.cjs`：**29/29 通过**，说明本地程序首页确实打开 Demo。
+- 本机 `%LOCALAPPDATA%/XHSOrganizer/0.2` 带有早期沙箱活动留下的只读权限，工具进程内的子进程写不进该目录；本次验证用 `XHS_APP_HOME` 指向工作区临时目录完成。该限制来自本机目录权限，不是本版本代码，真实用户目录未在本机双击验证。
 
 ## 已验证
 

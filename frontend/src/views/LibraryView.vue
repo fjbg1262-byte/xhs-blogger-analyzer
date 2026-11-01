@@ -1,6 +1,6 @@
 <template>
   <section class="library">
-    <div class="intro"><p class="eyebrow">小红书内容工作台 · 0.3.0-beta.5</p><h1>笔记库与内容交付</h1></div>
+    <div class="intro"><p class="eyebrow">小红书内容工作台 · 0.3.0-beta.6</p><h1>笔记库与内容交付</h1></div>
     <section class="card">
       <form class="create" @submit.prevent="create">
         <input v-model="profileUrl" aria-label="博主主页链接" placeholder="粘贴小红书博主主页链接" required />

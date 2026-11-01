@@ -1,6 +1,6 @@
 # 小红书内容整理与 AI 交付
 
-当前开发版本：应用 `0.3.0-beta.5`，浏览器扩展 `0.4.0`。
+当前开发版本：应用 `0.3.0-beta.6`，浏览器扩展 `0.4.0`。
 
 把可访问主页返回的最多100篇公开笔记整理成可搜索、筛选和导出的笔记库，再把固定的一批内容接入 AI 工作台。客户填写目标后，系统生成结合原笔记内容的账号解读、3个原创选题、每组2个标题、开头和正文大纲。结果必须人工复核后才能导出 HTML 或 PDF。
 
@@ -13,6 +13,15 @@
 - 隔离：笔记库变化、生成规则升级或运行中断后，旧结果不能确认或下载。
 - 复核：未确认报告只能预览草稿；确认后才开放正式 HTML/PDF 下载。
 - 安全：表格和报告不导出 API Key、Cookie、数据库路径、内部日志或模型请求原文。
+
+## 产品演示（纯前端 Demo）
+
+Phase 1 的纯前端 Demo 就是本地程序的入口页：启动后打开 `http://127.0.0.1:8000/` 会直接进入 Demo，开发时 `npm run dev` 后访问 `/demo`。所有数据为模拟数据，不访问小红书；右上角「进入真实工具」才是需要登录的笔记库。
+
+- 页面：首页与采集进度、笔记库（表格 / 封面）、单篇详情、账号八维分析、2 至 5 个账号对标、飞书交付、采集记录、设置。
+- 深链接：每页都可以单独打开给评审，例如 `?page=compare`、`?page=feishu`；点击左侧导航时地址栏会同步当前页，刷新不丢位置。
+- 点击验收：`node tests/browser/demo-smoke.cjs`（用本机 Edge 无头跑完整点击流程）。
+- 页面截图：`node tests/browser/demo-shots.cjs`，输出到 `data/tasks/verification/demo-shots/`。
 
 ## 从这里开始
 
@@ -31,7 +40,7 @@
 
 前端构建：在 `frontend` 执行 `npm run build`。
 
-交付构建：`powershell -ExecutionPolicy Bypass -File scripts/build_organizer.ps1 -Version 0.3.0-beta.5`。构建脚本会生成源码快照、EXE目录、前端资源、浏览器扩展、自检、密钥/运行数据扫描、ZIP和源码ZIP。
+交付构建：`powershell -ExecutionPolicy Bypass -File scripts/build_organizer.ps1 -Version 0.3.0-beta.6`。构建脚本会生成源码快照、EXE目录、前端资源、浏览器扩展、自检、密钥/运行数据扫描、ZIP和源码ZIP。
 
 ## 数据与旧版本
 
