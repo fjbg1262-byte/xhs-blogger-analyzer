@@ -1,5 +1,7 @@
 """Workspace API and retry worker tests (Phase 2)."""
 
+import csv
+import io
 import json
 import tempfile
 import unittest
@@ -192,6 +194,41 @@ class WorkspaceApiTests(unittest.TestCase):
         running = self.client.get("/api/workspace/tasks/2/progress").json()
         self.assertTrue(running["steps"][0]["active"])
         self.assertFalse(running["steps"][0]["done"])
+    def test_filters_and_paging_match_export(self):
+        page = self.client.get("/api/workspace/tasks/1?page=1&page_size=2").json()
+        self.assertEqual(len(page["notes"]), 2)
+        self.assertEqual(page["total"], 3)
+        self.assertEqual(page["pages"], 2)
+        self.assertEqual(page["page_size"], 2)
+
+        images = self.client.get("/api/workspace/tasks/1?type=图文").json()
+        self.assertEqual(images["total"], 2)
+        self.assertTrue(all(note["type"] == "图文" for note in images["notes"]))
+        self.assertEqual(images["facets"]["video"], 1)
+
+        search = self.client.get("/api/workspace/tasks/1?q=草原").json()
+        self.assertEqual(search["total"], 1)
+
+        incomplete = self.client.get("/api/workspace/tasks/1?incomplete=true").json()
+        self.assertEqual(incomplete["total"], 1)
+        self.assertTrue(incomplete["notes"][0]["incomplete"])
+
+        dated = self.client.get("/api/workspace/tasks/1?after=2026-08-02").json()
+        self.assertEqual(dated["total"], 0)
+
+        # 导出的行数与同一筛选下的 total 一致
+        expected = images["total"]
+        response = self.client.get("/api/workspace/tasks/1/export?format=csv&type=图文")
+        self.assertEqual(response.status_code, 200)
+        lines = list(csv.reader(io.StringIO(response.text)))
+        self.assertEqual(len(lines), expected + 1)
+
+        picked = images["notes"][0]["id"]
+        by_id = self.client.get(f"/api/workspace/tasks/1?ids={picked}").json()
+        self.assertEqual(by_id["total"], 1)
+        self.assertEqual(by_id["notes"][0]["id"], picked)
+        csv_ids = self.client.get(f"/api/workspace/tasks/1/export?format=csv&ids={picked}")
+        self.assertEqual(len(list(csv.reader(io.StringIO(csv_ids.text)))), 2)
     def test_stop_completed_task_conflicts(self):
         self.assertEqual(self.client.post("/api/workspace/tasks/1/stop").status_code, 409)
         with patch("backend.tasks.worker._cancel_task", return_value=True):

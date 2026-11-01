@@ -45,10 +45,38 @@ const OUT = process.env.WORKSPACE_SHOT || path.resolve(__dirname, "..", "..", "d
   // 100 篇分页：每页 50
   const page1 = await page.locator(".note-table tbody tr").count();
   await page.locator(".pager button").filter({ hasText: "下一页" }).click();
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
   const page2 = await page.locator(".note-table tbody tr").count();
   const pagerText = (await page.locator(".pager span").innerText()).trim();
   add("pagination", page1 === 50 && page2 === 50 && pagerText.includes("2 / 2"), `${page1}/${page2} ${pagerText}`);
+
+  // 服务端筛选：切到「图文」，总数与 tab 计数一致
+  await page.locator(".library-tabs button").filter({ hasText: "图文" }).click();
+  await page.waitForTimeout(500);
+  const imagePager = (await page.locator(".pager span").innerText()).trim();
+  const firstType = (await page.locator(".note-table tbody tr .type-pill").first().innerText()).trim();
+  add("filter_type", imagePager.includes("60") && firstType === "图文", `${imagePager} / ${firstType}`);
+  await page.locator(".library-tabs button").filter({ hasText: "全部" }).click();
+  await page.waitForTimeout(500);
+
+  // 搜索走服务端
+  await page.locator(".search-box input").fill("AI");
+  await page.waitForTimeout(800);
+  const searchPager = (await page.locator(".pager span").innerText()).trim();
+  add("filter_search", /共 \d+ 篇/.test(searchPager) && !searchPager.includes("共 100 篇"), searchPager);
+  await page.locator(".search-box input").fill("");
+  await page.waitForTimeout(800);
+
+  // 多选与批量导出入口
+  await page.locator(".note-table tbody tr .check input").first().check();
+  await page.waitForTimeout(200);
+  const selection = (await page.locator(".selection-bar").innerText()).replace(/\s+/g, " ").trim();
+  add("multi_select", selection.includes("已选择 1 篇"), selection);
+  await page.locator(".selection-bar .link-btn").filter({ hasText: "清空" }).click();
+
+  // 导出按钮：Excel / CSV / 飞书
+  const exportButtons = (await page.locator(".head-actions").innerText()).replace(/\s+/g, " ");
+  add("export_buttons", exportButtons.includes("导出 CSV") && exportButtons.includes("导出 Excel") && exportButtons.includes("飞书"), exportButtons.slice(0, 60));
 
   // 笔记详情按需加载：列表只带预览，打开抽屉再取正文
   await page.locator(".note-table tbody tr").first().click();

@@ -32,15 +32,44 @@ def dataset_path(task_id: int) -> Path:
     return Path(settings.data_dir) / "tasks" / str(task_id) / "dataset.json"
 
 
+# A finished dataset is immutable until a retry rewrites it. Cache the parsed
+# document and its statistics by (mtime, size) so repeated polling, filtering
+# and paging requests do not re-read and re-parse ~400KB each time.
+_DATASET_CACHE = {}
+_STATS_CACHE = {}
+_CACHE_LIMIT = 6
+
+
+def _cache_get(cache, key, stamp):
+    cached = cache.get(key)
+    return cached[2] if cached and cached[0] == stamp else None
+
+
+def _cache_put(cache, key, stamp, value):
+    if len(cache) >= _CACHE_LIMIT:
+        cache.clear()
+    cache[key] = (stamp[0], stamp[1], value)
+
+
 def load_dataset(task_id: int):
     """Return the stored dataset for a task, or None when it has not been written yet."""
     path = dataset_path(task_id)
     if not path.exists():
+        _DATASET_CACHE.pop(str(path), None)
+        _STATS_CACHE.pop(str(path), None)
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        stat = path.stat()
+        stamp = (stat.st_mtime, stat.st_size)
+        cached = _cache_get(_DATASET_CACHE, str(path), stamp)
+        if cached is not None:
+            return cached
+        dataset = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    _cache_put(_DATASET_CACHE, str(path), stamp, dataset)
+    _STATS_CACHE.pop(str(path), None)
+    return dataset
 
 
 def _count(row, key):
@@ -105,6 +134,88 @@ def find_note(dataset, note_id):
     return None
 
 
+SORT_KEYS = {
+    "engagement": None,
+    "likes": "liked_count",
+    "collected": "collected_count",
+    "comments": "comment_count",
+    "shares": "share_count",
+    "published": "published_at",
+    "list_order": "list_order",
+}
+
+
+def filter_rows(dataset, q="", type="", after="", before="", incomplete=False, ids=None):
+    """Apply the same filters to the page, the counts and the export."""
+    wanted = {str(item) for item in ids} if ids else None
+    query = (q or "").strip().lower()
+    rows = []
+    for row in dataset.get("rows") or []:
+        if wanted is not None and str(row.get("note_id")) not in wanted:
+            continue
+        if type and row.get("type") != type:
+            continue
+        published = (row.get("published_at") or "")[:10]
+        if after and (not published or published < after):
+            continue
+        if before and (not published or published > before):
+            continue
+        if incomplete and not is_incomplete(row):
+            continue
+        if query:
+            haystack = " ".join([
+                str(row.get("title") or ""),
+                str(row.get("content_text") or ""),
+                " ".join(str(tag) for tag in (row.get("tags") or [])),
+            ]).lower()
+            if query not in haystack:
+                continue
+        rows.append(row)
+    return rows
+
+
+def sort_rows(rows, sort="engagement"):
+    """Newest or biggest first; rows without the sort field stay at the end."""
+    if sort not in SORT_KEYS:
+        sort = "engagement"
+    if sort == "engagement":
+        return sorted(rows, key=engagement_of, reverse=True)
+    if sort == "published":
+        return sorted(rows, key=lambda row: row.get("published_at") or "", reverse=True)
+    if sort == "list_order":
+        return sorted(rows, key=lambda row: row.get("list_order") or 0)
+    field = SORT_KEYS[sort]
+    known = [row for row in rows if row.get(field) is not None]
+    missing = [row for row in rows if row.get(field) is None]
+    known.sort(key=lambda row: row.get(field), reverse=True)
+    return known + missing
+
+
+def note_page(dataset, q="", type="", after="", before="", incomplete=False, ids=None,
+              sort="engagement", page=1, page_size=50):
+    """One page of notes plus the totals needed by the paginator and the tabs."""
+    base = filter_rows(dataset, q=q, type="", after=after, before=before, incomplete=False, ids=ids)
+    rows = filter_rows(dataset, q=q, type=type, after=after, before=before, incomplete=incomplete, ids=ids)
+    rows = sort_rows(rows, sort)
+    size = max(1, min(int(page_size or 50), 100))
+    pages = max(1, (len(rows) + size - 1) // size)
+    current = min(max(1, int(page or 1)), pages)
+    start = (current - 1) * size
+    return {
+        "notes": [note_view(row) for row in rows[start:start + size]],
+        "total": len(rows),
+        "page": current,
+        "page_size": size,
+        "pages": pages,
+        "facets": {
+            "all": len(base),
+            "image": sum(1 for row in base if row.get("type") == "图文"),
+            "video": sum(1 for row in base if row.get("type") == "视频"),
+            "incomplete": sum(1 for row in base if is_incomplete(row)),
+        },
+    }
+
+
 def note_detail(row):
     """Full detail payload for one note, fetched when the drawer opens."""
     if row is None:
@@ -139,8 +250,19 @@ def _evidence(dataset):
     ]
 
 
-def dataset_stats(dataset):
-    """Public-metric statistics for the overview and analysis tabs."""
+def dataset_stats(dataset, task_id=None):
+    """Public-metric statistics for the overview and analysis tabs (cached per file version)."""
+    stamp = None
+    if task_id is not None:
+        try:
+            path = dataset_path(task_id)
+            stat = path.stat()
+            stamp = (stat.st_mtime, stat.st_size)
+            cached = _cache_get(_STATS_CACHE, str(path), stamp)
+            if cached is not None:
+                return cached
+        except OSError:
+            stamp = None
     rows = dataset.get("rows") or []
     analytics = build_report_analytics(_evidence(dataset))
     total = analytics.get("total_engagement") or 0
@@ -163,7 +285,7 @@ def dataset_stats(dataset):
     tags = Counter(tag for row in rows for tag in (row.get("tags") or []) if str(tag).strip())
     top_tag, top_tag_count = (tags.most_common(1)[0] if tags else ("", 0))
 
-    return {
+    result = {
         "metric_basis": analytics.get("metric_basis", ""),
         "note_count": len(rows),
         "total_engagement": total,
@@ -189,6 +311,9 @@ def dataset_stats(dataset):
         "body_count": sum(1 for row in rows if (row.get("content_text") or "").strip()),
         "failed_count": sum(1 for row in rows if is_incomplete(row)),
     }
+    if task_id is not None and stamp is not None:
+        _cache_put(_STATS_CACHE, str(path), stamp, result)
+    return result
 
 
 STAGE_STEPS = [

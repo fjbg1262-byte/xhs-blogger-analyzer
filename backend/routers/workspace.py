@@ -8,20 +8,22 @@ or the dataset contract.
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from backend.database import Account, Task, get_db
 from backend.routers.auth import get_current_user
-from backend.routers.library import export as library_export
+from backend.services.note_library import csv_bytes, xlsx_bytes
 from backend.services.note_workspace import (
     account_card,
     dataset_stats,
+    filter_rows,
     find_note,
     load_dataset,
     note_detail,
-    notes_view,
+    note_page,
     progress_steps,
+    sort_rows,
     task_card,
 )
 
@@ -74,19 +76,46 @@ def list_tasks(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 
 @router.get("/tasks/{task_id}")
-def get_task(task_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Full workspace payload: task card, account, note rows and statistics."""
+def get_task(
+    task_id: int,
+    q: str = "",
+    type: Literal["", "图文", "视频"] = "",
+    after: str = "",
+    before: str = "",
+    incomplete: bool = False,
+    ids: str = "",
+    sort: Literal["engagement", "likes", "collected", "comments", "shares", "published", "list_order"] = "engagement",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Full workspace payload: task card, account, one page of notes and statistics.
+
+    Filtering, sorting and paging happen here so the page and the export can
+    apply exactly the same rules.
+    """
     task = _collection_task(db, task_id, user["id"])
     dataset = load_dataset(task_id)
     if dataset is None:
         raise HTTPException(404, MSG_NO_DATA)
     account = db.query(Account).filter(Account.id == task.account_id, Account.user_id == user["id"]).first()
     card = task_card(task, dataset)
+    wanted = [item for item in ids.split(",") if item.strip()] if ids else None
+    page_payload = note_page(
+        dataset, q=q, type=type, after=after, before=before, incomplete=incomplete,
+        ids=wanted, sort=sort, page=page, page_size=page_size,
+    )
     return {
         "task": card,
         "account": account_card(account, task, dataset),
-        "notes": notes_view(dataset),
-        "stats": dataset_stats(dataset),
+        "notes": page_payload["notes"],
+        "total": page_payload["total"],
+        "page": page_payload["page"],
+        "page_size": page_payload["page_size"],
+        "pages": page_payload["pages"],
+        "facets": page_payload["facets"],
+        "stats": dataset_stats(dataset, task_id),
         "meta": {
             "schema_version": dataset.get("schema_version", ""),
             "status": dataset.get("status", ""),
@@ -137,20 +166,43 @@ def get_note(task_id: int, note_id: str, db: Session = Depends(get_db), user=Dep
 def export(
     task_id: int,
     format: Literal["xlsx", "csv", "feishu"] = "xlsx",
-    sort: Literal[
-        "list_order", "published_at", "liked_count", "collected_count", "comment_count", "share_count"
-    ] = "list_order",
+    sort: Literal["engagement", "likes", "collected", "comments", "shares", "published", "list_order"] = "engagement",
     top: int = Query(0, ge=0, le=100),
     q: str = "",
+    type: Literal["", "图文", "视频"] = "",
     after: str = "",
     before: str = "",
-    above_median: bool = False,
+    incomplete: bool = False,
+    ids: str = "",
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Same export contract as the legacy library page, kept in one place."""
+    """Export the same filtered rows the page shows, so counts always match."""
     _collection_task(db, task_id, user["id"])
-    return library_export(task_id, format, sort, top, q, after, before, above_median, db, user)
+    dataset = load_dataset(task_id)
+    if dataset is None:
+        raise HTTPException(404, MSG_NO_DATA)
+    wanted = [item for item in ids.split(",") if item.strip()] if ids else None
+    rows = filter_rows(dataset, q=q, type=type, after=after, before=before, incomplete=incomplete, ids=wanted)
+    rows = sort_rows(rows, sort)
+    if top:
+        rows = rows[:top]
+    if format == "csv":
+        payload, ext, mime = csv_bytes(rows), "csv", "text/csv; charset=utf-8"
+    else:
+        payload, ext, mime = (
+            xlsx_bytes(dataset, rows, feishu=format == "feishu"),
+            "xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    return Response(
+        payload,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="workspace-{task_id}-{format}.{ext}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post("/tasks/{task_id}/stop")
