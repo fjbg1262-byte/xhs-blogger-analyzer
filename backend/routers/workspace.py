@@ -9,6 +9,7 @@ or the dataset contract.
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.database import Account, Task, get_db
@@ -16,6 +17,7 @@ from backend.routers.auth import get_current_user
 from backend.services.note_library import csv_bytes, xlsx_bytes
 from backend.services.note_workspace import (
     account_card,
+    dataset_path,
     dataset_stats,
     filter_rows,
     find_note,
@@ -147,6 +149,21 @@ def get_progress(task_id: int, db: Session = Depends(get_db), user=Depends(get_c
         "steps": stages["steps"],
         "stop_reason": (dataset or {}).get("stop_reason", "") or task.error_message or "",
     }
+
+
+@router.get("/tasks/{task_id}/backup")
+def download_backup(task_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """The raw dataset of a task, i.e. the per-task backup before any export shaping."""
+    _collection_task(db, task_id, user["id"])
+    path = dataset_path(task_id)
+    if not path.exists():
+        raise HTTPException(404, MSG_NO_DATA)
+    return FileResponse(
+        path,
+        media_type="application/json",
+        filename=f"xhs-task-{task_id}-backup.json",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/tasks/{task_id}/notes/{note_id}")

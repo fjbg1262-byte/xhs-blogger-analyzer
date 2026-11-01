@@ -76,7 +76,7 @@ const OUT = process.env.WORKSPACE_SHOT || path.resolve(__dirname, "..", "..", "d
 
   // 导出按钮：Excel / CSV / 飞书
   const exportButtons = (await page.locator(".head-actions").innerText()).replace(/\s+/g, " ");
-  add("export_buttons", exportButtons.includes("导出 CSV") && exportButtons.includes("导出 Excel") && exportButtons.includes("飞书"), exportButtons.slice(0, 60));
+  add("export_buttons", exportButtons.includes("导出 CSV") && exportButtons.includes("导出 Excel") && exportButtons.includes("飞书") && exportButtons.includes("下载原始数据"), exportButtons.slice(0, 80));
 
   // 笔记详情按需加载：列表只带预览，打开抽屉再取正文
   await page.locator(".note-table tbody tr").first().click();

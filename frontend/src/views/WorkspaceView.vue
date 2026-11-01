@@ -119,6 +119,8 @@
                 补采未完成 {{ detail.task.failed_count }} 篇
               </button>
               <button class="btn ghost" type="button" :disabled="exporting" @click="download('xlsx')">导出 Excel</button>
+              <button class="btn ghost" type="button" :disabled="exporting" @click="download('csv')">导出 CSV</button>
+              <button class="btn ghost" type="button" :disabled="exporting" @click="downloadBackup">下载原始数据</button>
               <button class="btn primary" type="button" :disabled="exporting" @click="download('feishu')">导出飞书导入包</button>
             </div>
           </div>
@@ -180,7 +182,16 @@
             <select v-model="sortBy">
               <option value="engagement">按互动排序</option>
               <option value="likes">按点赞排序</option>
+              <option value="collected">按收藏排序</option>
+              <option value="comments">按评论排序</option>
+              <option value="shares">按分享排序</option>
               <option value="published">按发布时间</option>
+            </select>
+            <select v-model="dateRange">
+              <option value="all">全部时间</option>
+              <option value="30">近 30 天</option>
+              <option value="90">近 90 天</option>
+              <option value="180">近半年</option>
             </select>
             <label class="check"><input v-model="onlyIncomplete" type="checkbox" />只看未完成</label>
             <div class="view-switch">
@@ -189,13 +200,21 @@
             </div>
           </div>
 
+          <div v-if="selected.length" class="selection-bar">
+            <span>已选择 {{ selected.length }} 篇</span>
+            <button class="link-btn" type="button" @click="selected = []">清空</button>
+            <button class="link-btn" type="button" @click="download('xlsx', selected)">导出选中 Excel</button>
+            <button class="link-btn" type="button" @click="download('feishu', selected)">导出选中飞书包</button>
+          </div>
+
           <div v-if="viewMode === 'table'" class="table-wrap">
             <table class="note-table">
               <thead>
-                <tr><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评 / 享</th><th>标签</th><th>来源</th><th>采集</th></tr>
+                <tr><th class="check"><input type="checkbox" :checked="allOnPageSelected" @change="toggleSelectPage" /></th><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评 / 享</th><th>标签</th><th>来源</th><th>采集</th></tr>
               </thead>
               <tbody>
-                <tr v-for="note in pagedNotes" :key="note.id" @click="openNote(note)">
+                <tr v-for="note in notes" :key="note.id" @click="openNote(note)">
+                  <td class="check" @click.stop><input type="checkbox" :checked="selected.includes(note.id)" @change="toggleSelect(note.id)" /></td>
                   <td>
                     <span class="note-cell">
                       <span class="thumb">
@@ -217,11 +236,11 @@
                 </tr>
               </tbody>
             </table>
-            <div v-if="!visibleNotes.length" class="empty-state">没有符合筛选条件的笔记</div>
+            <div v-if="!notes.length" class="empty-state">没有符合筛选条件的笔记</div>
           </div>
 
           <div v-else class="note-grid">
-            <article v-for="note in pagedNotes" :key="note.id" class="note-card" @click="openNote(note)">
+            <article v-for="note in notes" :key="note.id" class="note-card" @click="openNote(note)">
               <div class="card-cover">
                 <img v-if="note.cover_url" :src="note.cover_url" loading="lazy" referrerpolicy="no-referrer" alt="" @error="broken[note.id] = true" v-show="!broken[note.id]" />
                 <b v-if="!note.cover_url || broken[note.id]">{{ note.type }}</b>
@@ -234,10 +253,10 @@
               </div>
             </article>
           </div>
-          <div v-if="visibleNotes.length > pageSize" class="pager">
-            <button class="btn ghost" type="button" :disabled="page === 1" @click="page -= 1">上一页</button>
-            <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ visibleNotes.length }} 篇</span>
-            <button class="btn ghost" type="button" :disabled="page === pageCount" @click="page += 1">下一页</button>
+          <div v-if="total > pageSize" class="pager">
+            <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="goPage(currentPage - 1)">上一页</button>
+            <span>第 {{ currentPage }} / {{ pageCount }} 页 · 共 {{ total }} 篇</span>
+            <button class="btn ghost" type="button" :disabled="currentPage === pageCount" @click="goPage(currentPage + 1)">下一页</button>
           </div>
         </template>
       </div>
@@ -372,6 +391,11 @@ interface TaskDetail {
   task: TaskCard
   account: { id: number; name: string; profile_url: string; note_count: number }
   notes: NoteRow[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+  facets: { all: number; image: number; video: number; incomplete: number }
   stats: Stats
   meta: { status: string; stop_reason: string; pages: number; duplicates: number }
 }
@@ -390,7 +414,10 @@ const exporting = ref(false)
 const search = ref('')
 const sortBy = ref('engagement')
 const typeFilter = ref<'all' | '图文' | '视频' | '未完成'>('all')
+const dateRange = ref<'all' | '30' | '90' | '180'>('all')
 const onlyIncomplete = ref(false)
+const selected = ref<string[]>([])
+const pageSize = 50
 const viewMode = ref<'table' | 'cards'>('table')
 const activeNote = ref<NoteRow | null>(null)
 const activeDetail = ref<NoteDetail | null>(null)
@@ -405,7 +432,6 @@ const starting = ref(false)
 const formError = ref('')
 const startingTaskId = ref<number | null>(null)
 const page = ref(1)
-const pageSize = 50
 const broken = ref<Record<string, boolean>>({})
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
@@ -417,27 +443,40 @@ const typeTabs = [
 ]
 const canStop = computed(() => detail.value !== null && ['pending', 'running'].includes(detail.value.task.status))
 
-const visibleNotes = computed(() => {
-  if (!detail.value) return []
-  const query = search.value.trim().toLowerCase()
-  const rows = detail.value.notes.filter(note => {
-    const tabOk =
-      typeFilter.value === 'all' ||
-      (typeFilter.value === '未完成' ? note.incomplete : note.type === typeFilter.value)
-    const queryOk = !query || `${note.title} ${note.body_preview} ${note.tags.join(' ')}`.toLowerCase().includes(query)
-    return tabOk && queryOk && (!onlyIncomplete.value || note.incomplete)
-  })
-  const sorters: Record<string, (a: NoteRow, b: NoteRow) => number> = {
-    engagement: (a, b) => b.engagement - a.engagement,
-    likes: (a, b) => (b.likes || 0) - (a.likes || 0),
-    published: (a, b) => b.published_at.localeCompare(a.published_at),
-  }
-  return [...rows].sort(sorters[sortBy.value] || sorters.engagement)
+const notes = computed(() => detail.value?.notes || [])
+const total = computed(() => detail.value?.total || 0)
+const pageCount = computed(() => detail.value?.pages || 1)
+const currentPage = computed(() => detail.value?.page || 1)
+const allOnPageSelected = computed(() => notes.value.length > 0 && notes.value.every(note => selected.value.includes(note.id)))
+
+const filters = computed(() => ({
+  q: search.value.trim() || undefined,
+  type: typeFilter.value === 'all' || typeFilter.value === '未完成' ? undefined : typeFilter.value,
+  after: dateAfter(dateRange.value),
+  incomplete: typeFilter.value === '未完成' || onlyIncomplete.value ? true : undefined,
+  sort: sortBy.value,
+  page: page.value,
+  page_size: pageSize,
+}))
+
+function dateAfter(range: 'all' | '30' | '90' | '180') {
+  if (range === 'all') return undefined
+  const date = new Date()
+  date.setDate(date.getDate() - Number(range))
+  return date.toISOString().slice(0, 10)
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(search, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    void loadDetail()
+  }, 300)
 })
-const pageCount = computed(() => Math.max(1, Math.ceil(visibleNotes.value.length / pageSize)))
-const pagedNotes = computed(() => visibleNotes.value.slice((page.value - 1) * pageSize, page.value * pageSize))
-watch([search, sortBy, typeFilter, onlyIncomplete], () => {
+watch([sortBy, typeFilter, dateRange, onlyIncomplete], () => {
   page.value = 1
+  void loadDetail()
 })
 
 function accountName(task: TaskCard) {
@@ -445,9 +484,17 @@ function accountName(task: TaskCard) {
 }
 function typeCount(key: string) {
   if (!detail.value) return 0
-  if (key === 'all') return detail.value.notes.length
-  if (key === '未完成') return detail.value.notes.filter(note => note.incomplete).length
-  return detail.value.notes.filter(note => note.type === key).length
+  const facets = detail.value.facets
+  if (key === 'all') return facets.all
+  if (key === '未完成') return facets.incomplete
+  if (key === '图文') return facets.image
+  return facets.video
+}
+function toggleSelect(id: string) {
+  selected.value = selected.value.includes(id) ? selected.value.filter(item => item !== id) : [...selected.value, id]
+}
+function toggleSelectPage() {
+  selected.value = allOnPageSelected.value ? [] : notes.value.map(note => note.id)
 }
 function metric(value: number | null) {
   return value === null || value === undefined ? '未获取' : compact(value)
@@ -481,13 +528,27 @@ async function select(id: number) {
   closeNote()
   notice.value = ''
   page.value = 1
+  selected.value = []
+  await loadDetail()
+}
+
+async function loadDetail() {
+  if (!selectedId.value) return
   try {
-    const response = await workspaceAPI.task(id)
+    const response = await workspaceAPI.task(selectedId.value, filters.value)
     detail.value = response.data as TaskDetail
+    error.value = ''
   } catch (exc: any) {
     detail.value = null
     error.value = exc?.response?.data?.detail || '这个任务还没有可用的采集结果。'
   }
+}
+
+function goPage(next: number) {
+  const target = Math.min(Math.max(1, next), pageCount.value)
+  if (target === page.value) return
+  page.value = target
+  void loadDetail()
 }
 
 async function openNote(note: NoteRow) {
@@ -657,19 +718,40 @@ async function retryFailed() {
   }
 }
 
-async function download(format: 'xlsx' | 'feishu') {
+async function download(format: 'xlsx' | 'csv' | 'feishu', ids?: string[]) {
   if (!detail.value) return
   exporting.value = true
   try {
-    const response = await workspaceAPI.export(detail.value.task.id, format)
+    const params = { ...filters.value, ids: ids && ids.length ? ids.join(',') : undefined }
+    const response = await workspaceAPI.export(detail.value.task.id, format, params)
     const url = URL.createObjectURL(response.data as Blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${detail.value.account.name || '笔记库'}-${format}.${format === 'feishu' ? 'xlsx' : 'xlsx'}`
+    link.download = `${detail.value.account.name || '笔记库'}-${format}.${format === 'csv' ? 'csv' : 'xlsx'}`
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    notice.value = ids?.length ? `已导出选中 ${ids.length} 篇` : '已导出当前筛选结果'
   } catch (exc: any) {
     notice.value = exc?.response?.data?.detail || '导出失败，请稍后重试。'
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function downloadBackup() {
+  if (!detail.value) return
+  exporting.value = true
+  try {
+    const response = await workspaceAPI.backup(detail.value.task.id)
+    const url = URL.createObjectURL(response.data as Blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `xhs-task-${detail.value.task.id}-backup.json`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    notice.value = '已下载该任务的原始采集数据（dataset.json）'
+  } catch (exc: any) {
+    notice.value = exc?.response?.data?.detail || '下载备份失败，请稍后重试。'
   } finally {
     exporting.value = false
   }
@@ -812,6 +894,8 @@ onUnmounted(() => clearInterval(pollTimer))
 .library-tabs button span { margin-left: 5px; font-size: 10px; color: var(--muted-2); }
 .library-tabs button.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--xhs); }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.selection-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; padding: 8px 12px; border: 1px solid #f3c3cc; border-radius: 6px; background: #fff0f2; font-size: 11.5px; color: var(--xhs-dark); }
+.link-btn { border: 0; background: none; padding: 0; color: var(--xhs-dark); font-size: 11.5px; cursor: pointer; text-decoration: underline; }
 .search-box { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 5px; background: #fdfbf7; color: var(--muted-2); }
 .search-box input { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: transparent; font-size: 12px; outline: none; color: var(--ink); }
 .toolbar select { width: auto; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 11.5px; }
@@ -824,6 +908,8 @@ onUnmounted(() => clearInterval(pollTimer))
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
 .note-table { width: 100%; border-collapse: collapse; }
 .note-table th { padding: 9px 10px; background: #f4ecdf; font-size: 10.5px; font-weight: 700; color: #6f6355; text-align: left; white-space: nowrap; }
+.note-table th.check, .note-table td.check { width: 34px; padding-right: 0; }
+.note-table .check input { width: 13px; height: 13px; }
 .note-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 11.5px; vertical-align: middle; }
 .note-table tbody tr { cursor: pointer; }
 .note-table tbody tr:hover { background: #fdf9f2; }

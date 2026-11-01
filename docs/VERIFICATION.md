@@ -1,5 +1,13 @@
 # 0.3.0-beta.6 验证记录
 
+## Phase 3 笔记库与导出（2026-11-01）
+
+- 服务端筛选/排序/分页：`GET /api/workspace/tasks/{id}` 支持 q、type、after/before、incomplete、ids、sort、page、page_size，并返回 total/pages/facets，tab 计数与列表同源。
+- 导出一致性：`/export` 复用同一组筛选参数，导出条数与页面筛选一致；新增 CSV 与原始数据备份下载。
+- 多选批量导出：表格勾选后按 ids 导出 Excel / 飞书包。
+- 性能：dataset 与统计按 (路径, mtime, size) 缓存，筛选、翻页、轮询不再重复解析。
+- 验证：`tests/test_workspace_api.py` **10 项通过**；真实任务 #8 上全部 100 篇 / 图文 60 / 搜索 AI 85 / 时间过滤 24 / ids 2；无头 Edge 12 项检查通过。
+- 明细见 [Phase 3 笔记库与导出](PHASE3_NOTE_LIBRARY.md)。
 ## Phase 2 后端接线（2026-11-01）
 
 - 新增 `backend/routers/workspace.py`、`backend/services/note_workspace.py`、`backend/tasks/retry_worker.py`，不改采集器与 dataset 契约，明细见 [Phase 2 后端接口](PHASE2_WORKSPACE_API.md)。

@@ -66,16 +66,29 @@ export const taskAPI = {
     api.post('/tasks/competitor-discover', { keyword, count, cookie_id: cookieId }),
 }
 
-// Workspace (Phase 2: real data for the new UI)
+// Workspace (Phase 2/3: real data for the new UI)
+export interface WorkspaceQuery {
+  q?: string
+  type?: string
+  after?: string
+  before?: string
+  incomplete?: boolean
+  ids?: string
+  sort?: string
+  page?: number
+  page_size?: number
+}
+
 export const workspaceAPI = {
   tasks: () => api.get('/workspace/tasks'),
-  task: (id: number) => api.get(`/workspace/tasks/${id}`),
+  task: (id: number, params: WorkspaceQuery = {}) => api.get(`/workspace/tasks/${id}`, { params }),
   note: (taskId: number, noteId: string) => api.get(`/workspace/tasks/${taskId}/notes/${encodeURIComponent(noteId)}`),
   progress: (id: number) => api.get(`/workspace/tasks/${id}/progress`),
   stop: (id: number) => api.post(`/workspace/tasks/${id}/stop`),
   retry: (id: number, maxCount = 10) => api.post(`/workspace/tasks/${id}/retry?max_count=${maxCount}`),
-  export: (id: number, format: 'xlsx' | 'csv' | 'feishu', top = 0, sort = 'list_order') =>
-    api.get(`/workspace/tasks/${id}/export`, { params: { format, top, sort }, responseType: 'blob' }),
+  export: (id: number, format: 'xlsx' | 'csv' | 'feishu', params: WorkspaceQuery = {}) =>
+    api.get(`/workspace/tasks/${id}/export`, { params: { ...params, format }, responseType: 'blob' }),
+  backup: (id: number) => api.get(`/workspace/tasks/${id}/backup`, { responseType: 'blob' }),
 }
 
 // Note collection (existing endpoint, reused by the workspace form)
