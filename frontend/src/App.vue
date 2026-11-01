@@ -16,7 +16,8 @@
       <nav class="header-nav">
         <template v-if="isAuthenticated()">
           <router-link to="/demo"><span class="nav-icon" aria-hidden="true">▦</span>产品演示</router-link>
-          <router-link to="/library"><span class="nav-icon" aria-hidden="true">▤</span>笔记库</router-link>
+          <router-link to="/workspace"><span class="nav-icon" aria-hidden="true">◎</span>真实工作台</router-link>
+          <router-link to="/library"><span class="nav-icon" aria-hidden="true">▤</span>旧版笔记库</router-link>
           <router-link to="/history"><span class="nav-icon" aria-hidden="true">◷</span>旧版报告记录</router-link>
           <router-link to="/settings"><span class="nav-icon" aria-hidden="true">⚙</span>设置</router-link>
           <button class="nav-button" type="button" title="退出登录" @click="logout">

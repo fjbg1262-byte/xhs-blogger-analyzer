@@ -66,6 +66,17 @@ export const taskAPI = {
     api.post('/tasks/competitor-discover', { keyword, count, cookie_id: cookieId }),
 }
 
+// Workspace (Phase 2: real data for the new UI)
+export const workspaceAPI = {
+  tasks: () => api.get('/workspace/tasks'),
+  task: (id: number) => api.get(`/workspace/tasks/${id}`),
+  progress: (id: number) => api.get(`/workspace/tasks/${id}/progress`),
+  stop: (id: number) => api.post(`/workspace/tasks/${id}/stop`),
+  retry: (id: number, maxCount = 10) => api.post(`/workspace/tasks/${id}/retry?max_count=${maxCount}`),
+  export: (id: number, format: 'xlsx' | 'csv' | 'feishu', top = 0, sort = 'list_order') =>
+    api.get(`/workspace/tasks/${id}/export`, { params: { format, top, sort }, responseType: 'blob' }),
+}
+
 // Reports
 export const reportAPI = {
   list: (taskId: number) => api.get(`/reports/${taskId}`),

@@ -1,5 +1,13 @@
 # 0.3.0-beta.6 验证记录
 
+## Phase 2 后端接线（2026-11-01）
+
+- 新增 `backend/routers/workspace.py`、`backend/services/note_workspace.py`、`backend/tasks/retry_worker.py`，不改采集器与 dataset 契约，明细见 [Phase 2 后端接口](PHASE2_WORKSPACE_API.md)。
+- `tests/test_workspace_api.py`：**7 项通过**，覆盖任务卡、笔记映射、统计口径、空数据集、越权 404、三种导出、停止冲突、补采队列与补采写回。
+- 真实数据验证：用运行时数据副本启动后端，8 个任务 / 4 个账号；任务 #8（100 篇）统计为 126,548 互动、中位数 472.5、Top 20 篇占 75.5%、视频 1.3x、AI 标签 75 篇，与原报告页数字一致；飞书导出 115KB。
+- 前端新增 `/workspace`：真实任务列表、4 个 KPI、4 个洞察卡、100 行真实笔记、封面图、详情抽屉、停止与补采、Excel/飞书导出；无头 Edge 检查全部渲染且无运行时报错。
+- 已知限制：100 行整页渲染未分页；八维 / 3 个选题仍为演示数据（Phase 5）；从页面发起采集待接插件 cookie。
+
 ## Phase 1 前端 Demo（2026-11-01）
 
 - 前端 `vue-tsc && vite build`：通过；构建产物包含 `ProductDemoView` 独立分包。

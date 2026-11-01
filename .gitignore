@@ -16,6 +16,7 @@ data/all_notes.json
 data/contents.json
 data/results.json
 data/tasks/
+data/dev-runtime/
 data/app.db
 data/app.db-journal
 data/app.db-wal

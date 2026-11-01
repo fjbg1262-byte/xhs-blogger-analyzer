@@ -24,6 +24,19 @@ Phase 1 的纯前端 Demo 就是本地程序的入口页，产品名「薯光」
 - 点击验收：`node tests/browser/demo-smoke.cjs`（用本机 Edge 无头跑完整点击流程）。
 - 页面截图：`node tests/browser/demo-shots.cjs`，输出到 `data/tasks/verification/demo-shots/`。
 
+## 真实工作台（Phase 2）
+
+`/workspace` 接的是真实采集结果：任务列表、公开互动统计、笔记表格/封面、详情抽屉、停止采集、补采未完成笔记，以及 Excel / 飞书导入包导出。数据来自已有的 `dataset.json`，口径与客户报告一致，接口说明见 [Phase 2 后端接口](docs/PHASE2_WORKSPACE_API.md)。
+
+本地用运行时数据副本启动：
+
+```powershell
+$env:XHS_APP_HOME="<repo>\data\dev-runtime"
+.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+
+真实使用时由浏览器插件完成登录并跳转，不需要手动配置 token。
+
 ## 从这里开始
 
 - [产品、字段和 AI 交付规则](docs/ORGANIZER_SPEC.md)

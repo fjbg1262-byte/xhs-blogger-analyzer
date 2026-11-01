@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.database import init_db
 from backend.config import settings
 from backend.tasks.worker import init_worker
-from backend.routers import ai, auth, cookies, extension, library, llm_config, reports, tasks, telemetry
+from backend.routers import ai, auth, cookies, extension, library, llm_config, reports, tasks, telemetry, workspace
 from backend.services.telemetry import track
 from backend.services.customer_report import REPORT_RENDERER_VERSION
 
@@ -72,6 +72,7 @@ app.include_router(ai.router)
 app.include_router(llm_config.router)
 app.include_router(extension.router)
 app.include_router(library.router)
+app.include_router(workspace.router)
 app.include_router(telemetry.router)
 
 

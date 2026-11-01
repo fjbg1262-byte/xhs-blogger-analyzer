@@ -11,6 +11,12 @@ const routes = [
   },
   { path: '/library', name: 'Library', component: () => import('../views/LibraryView.vue') },
   {
+    path: '/workspace',
+    name: 'Workspace',
+    component: () => import('../views/WorkspaceView.vue'),
+    meta: { standalone: true },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),

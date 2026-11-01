@@ -39,7 +39,7 @@
         <div class="crumb"><span>工作台</span><i>/</i><strong>{{ currentLabel }}</strong></div>
         <div class="top-actions">
           <span class="demo-badge">演示数据</span>
-          <router-link class="real-link" to="/library">进入真实工具</router-link>
+          <router-link class="real-link" to="/workspace">进入真实工具</router-link>
         </div>
       </header>
 
