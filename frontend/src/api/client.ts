@@ -77,6 +77,12 @@ export const workspaceAPI = {
     api.get(`/workspace/tasks/${id}/export`, { params: { format, top, sort }, responseType: 'blob' }),
 }
 
+// Note collection (existing endpoint, reused by the workspace form)
+export const libraryAPI = {
+  create: (profileUrl: string, cookieId: number) =>
+    api.post('/library/', { profile_url: profileUrl, cookie_id: cookieId }),
+}
+
 // Reports
 export const reportAPI = {
   list: (taskId: number) => api.get(`/reports/${taskId}`),

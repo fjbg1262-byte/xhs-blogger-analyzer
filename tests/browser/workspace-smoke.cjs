@@ -42,6 +42,24 @@ const OUT = process.env.WORKSPACE_SHOT || path.resolve(__dirname, "..", "..", "d
   const firstTask = (await page.locator(".task-item").first().innerText()).replace(/\s+/g, " ").trim();
   add("task_list", (await page.locator(".task-item").count()) > 0, firstTask);
 
+  // 100 篇分页：每页 50
+  const page1 = await page.locator(".note-table tbody tr").count();
+  await page.locator(".pager button").filter({ hasText: "下一页" }).click();
+  await page.waitForTimeout(250);
+  const page2 = await page.locator(".note-table tbody tr").count();
+  const pagerText = (await page.locator(".pager span").innerText()).trim();
+  add("pagination", page1 === 50 && page2 === 50 && pagerText.includes("2 / 2"), `${page1}/${page2} ${pagerText}`);
+
+  // 新建采集表单：打开、校验、收起（不真的发起网络采集）
+  await page.locator(".new-btn").click();
+  add("collection_form", await page.locator(".capture-form").isVisible());
+  await page.locator(".capture-form input").fill("https://example.com/not-xhs");
+  await page.getByRole("button", { name: "开始采集" }).click();
+  await page.waitForTimeout(300);
+  const formError = (await page.locator(".form-error").innerText()).trim();
+  add("collection_validation", formError.includes("小红书"), formError);
+  await page.getByRole("button", { name: "收起" }).click();
+
   add("no_console_error", true);
   const errors = [];
   page.on("pageerror", error => errors.push(String(error)));

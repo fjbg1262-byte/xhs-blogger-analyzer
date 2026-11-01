@@ -15,6 +15,7 @@
       </div>
 
       <button class="demo-link" type="button" @click="router.push('/demo')">查看演示数据 →</button>
+      <button class="new-btn" type="button" @click="openForm">+ 新建采集</button>
 
       <p class="side-label">采集记录</p>
       <div class="task-list">
@@ -52,6 +53,38 @@
       </header>
 
       <div class="content">
+        <section v-if="showForm" class="capture">
+          <div class="capture-head">
+            <div><p class="eyebrow">NEW COLLECTION</p><h2>采集一个博主主页</h2></div>
+            <button class="btn ghost" type="button" @click="showForm = false">收起</button>
+          </div>
+          <form class="capture-form" @submit.prevent="startCollection">
+            <label class="field">
+              <span>主页链接</span>
+              <input v-model="profileUrl" placeholder="https://www.xiaohongshu.com/user/profile/..." />
+            </label>
+            <label class="field cookie-field">
+              <span>登录状态</span>
+              <select v-model="cookieId">
+                <option :value="0" disabled>选择浏览器登录状态</option>
+                <option v-for="cookie in cookies" :key="cookie.id" :value="cookie.id">
+                  {{ cookie.nickname || '未命名' }} · {{ cookie.is_valid === false ? '已失效' : '可用' }}
+                </option>
+              </select>
+            </label>
+            <button class="btn primary" type="submit" :disabled="starting || !cookieId">
+              {{ starting ? '正在开始…' : '开始采集' }}
+            </button>
+          </form>
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+          <p v-else-if="!cookies.length" class="form-hint">还没有登录状态：先在浏览器插件里对任意主页点一次采集，插件会保存登录状态。</p>
+        </section>
+
+        <div v-if="startingTaskId && (!detail || detail.task.id !== startingTaskId)" class="state">
+          <b>正在采集 #{{ startingTaskId }}</b>
+          <span>{{ notice || '正在读取主页和正文，完成后会自动打开结果。' }}</span>
+        </div>
+
         <p v-if="loading" class="state">正在读取采集结果…</p>
         <div v-else-if="error" class="state error">{{ error }}</div>
         <div v-else-if="!detail" class="state empty">
@@ -154,7 +187,7 @@
                 <tr><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评 / 享</th><th>标签</th><th>来源</th><th>采集</th></tr>
               </thead>
               <tbody>
-                <tr v-for="note in visibleNotes" :key="note.id" @click="activeNote = note">
+                <tr v-for="note in pagedNotes" :key="note.id" @click="activeNote = note">
                   <td>
                     <span class="note-cell">
                       <span class="thumb">
@@ -180,7 +213,7 @@
           </div>
 
           <div v-else class="note-grid">
-            <article v-for="note in visibleNotes" :key="note.id" class="note-card" @click="activeNote = note">
+            <article v-for="note in pagedNotes" :key="note.id" class="note-card" @click="activeNote = note">
               <div class="card-cover">
                 <img v-if="note.cover_url" :src="note.cover_url" loading="lazy" referrerpolicy="no-referrer" alt="" @error="broken[note.id] = true" v-show="!broken[note.id]" />
                 <b v-if="!note.cover_url || broken[note.id]">{{ note.type }}</b>
@@ -192,6 +225,11 @@
                 <div><span>赞 {{ metric(note.likes) }}</span><span>藏 {{ metric(note.collected) }}</span><span>评 {{ metric(note.comments) }}</span></div>
               </div>
             </article>
+          </div>
+          <div v-if="visibleNotes.length > pageSize" class="pager">
+            <button class="btn ghost" type="button" :disabled="page === 1" @click="page -= 1">上一页</button>
+            <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ visibleNotes.length }} 篇</span>
+            <button class="btn ghost" type="button" :disabled="page === pageCount" @click="page += 1">下一页</button>
           </div>
         </template>
       </div>
@@ -242,9 +280,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { workspaceAPI } from '../api/client'
+import { cookieAPI, libraryAPI, workspaceAPI } from '../api/client'
 import { clearAuth, currentUsername } from '../auth'
 
 interface TaskCard {
@@ -280,6 +318,13 @@ interface NoteRow {
   incomplete: boolean
   failure: string
   missing_fields: string[]
+}
+interface CookieRow {
+  id: number
+  nickname: string | null
+  is_active: boolean
+  is_valid: boolean | null
+  created_at: string
 }
 interface Stats {
   note_count: number
@@ -326,6 +371,15 @@ const typeFilter = ref<'all' | '图文' | '视频' | '未完成'>('all')
 const onlyIncomplete = ref(false)
 const viewMode = ref<'table' | 'cards'>('table')
 const activeNote = ref<NoteRow | null>(null)
+const cookies = ref<CookieRow[]>([])
+const showForm = ref(false)
+const profileUrl = ref('')
+const cookieId = ref(0)
+const starting = ref(false)
+const formError = ref('')
+const startingTaskId = ref<number | null>(null)
+const page = ref(1)
+const pageSize = 50
 const broken = ref<Record<string, boolean>>({})
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
@@ -353,6 +407,11 @@ const visibleNotes = computed(() => {
     published: (a, b) => b.published_at.localeCompare(a.published_at),
   }
   return [...rows].sort(sorters[sortBy.value] || sorters.engagement)
+})
+const pageCount = computed(() => Math.max(1, Math.ceil(visibleNotes.value.length / pageSize)))
+const pagedNotes = computed(() => visibleNotes.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+watch([search, sortBy, typeFilter, onlyIncomplete], () => {
+  page.value = 1
 })
 
 function accountName(task: TaskCard) {
@@ -395,6 +454,7 @@ async function select(id: number) {
   selectedId.value = id
   activeNote.value = null
   notice.value = ''
+  page.value = 1
   try {
     const response = await workspaceAPI.task(id)
     detail.value = response.data as TaskDetail
@@ -402,6 +462,71 @@ async function select(id: number) {
     detail.value = null
     error.value = exc?.response?.data?.detail || '这个任务还没有可用的采集结果。'
   }
+}
+
+async function openForm() {
+  showForm.value = true
+  formError.value = ''
+  try {
+    const response = await cookieAPI.list()
+    cookies.value = response.data as CookieRow[]
+    if (!cookieId.value) cookieId.value = cookies.value.find(item => item.is_valid !== false)?.id || 0
+  } catch {
+    formError.value = '读取登录状态失败，请确认本地工具正在运行。'
+  }
+}
+
+async function startCollection() {
+  formError.value = ''
+  const url = profileUrl.value.trim()
+  if (!/^https?:\/\/(www\.)?xiaohongshu\.com\/user\/profile\/[A-Za-z0-9_-]{8,64}\/?/.test(url)) {
+    formError.value = '请填写小红书博主主页链接，例如 https://www.xiaohongshu.com/user/profile/…'
+    return
+  }
+  if (!cookieId.value) {
+    formError.value = '请选择浏览器登录状态。'
+    return
+  }
+  starting.value = true
+  try {
+    const response = await libraryAPI.create(url, cookieId.value)
+    const id = response.data.id as number
+    startingTaskId.value = id
+    notice.value = '已开始采集，正在读取主页…'
+    showForm.value = false
+    profileUrl.value = ''
+    await loadListQuiet()
+    pollNewTask(id)
+  } catch (exc: any) {
+    formError.value = exc?.response?.data?.detail || '开始采集失败，请检查登录状态或稍后重试。'
+  } finally {
+    starting.value = false
+  }
+}
+
+function pollNewTask(id: number) {
+  clearInterval(pollTimer)
+  pollTimer = setInterval(async () => {
+    try {
+      const progress = await workspaceAPI.progress(id)
+      const task = progress.data.task as TaskCard
+      notice.value = `${task.status_label}：已整理 ${task.note_count} 篇`
+      if (!['pending', 'running'].includes(task.status)) {
+        clearInterval(pollTimer)
+        startingTaskId.value = null
+        await loadListQuiet()
+        if (task.has_dataset) {
+          await select(id)
+        } else {
+          error.value = `采集没有产出可用结果：${task.reason || task.status_label}`
+        }
+        notice.value = task.status === 'completed' ? '采集完成，已打开结果。' : `采集结束：${task.status_label}${task.reason ? '，' + task.reason : ''}`
+      }
+    } catch {
+      clearInterval(pollTimer)
+      startingTaskId.value = null
+    }
+  }, 2000)
 }
 
 function poll() {
@@ -522,6 +647,20 @@ onUnmounted(() => clearInterval(pollTimer))
 .brand-copy span { margin-top: 2px; font-size: 10px; color: var(--muted-2); }
 .demo-link { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 6px; padding: 7px 10px; font-size: 11.5px; cursor: pointer; }
 .demo-link:hover { border-color: var(--xhs); color: var(--xhs-dark); }
+.new-btn { margin-top: 6px; border: 0; border-radius: 6px; background: var(--xhs); color: #fff; padding: 8px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.new-btn:hover { background: var(--xhs-dark); }
+.capture { margin-bottom: 18px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 7px; }
+.capture-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.capture-head h2 { margin: 0; font-family: var(--serif); font-size: 18px; }
+.capture-form { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 220px; }
+.field > span { font-size: 10px; letter-spacing: .06em; color: #9a8b74; text-transform: uppercase; }
+.field input, .field select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: #fdfbf7; font-size: 12px; font-family: inherit; color: var(--ink); }
+.cookie-field { flex: 0 0 240px; min-width: 200px; }
+.form-error { margin: 8px 0 0; font-size: 11.5px; color: #b03a2e; }
+.form-hint { margin: 8px 0 0; font-size: 11px; color: var(--muted-2); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; font-size: 11.5px; color: var(--muted); }
+.pager .btn { min-height: 30px; padding: 5px 12px; font-size: 11.5px; }
 .side-label { margin: 16px 6px 6px; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
 .task-list { display: grid; gap: 2px; overflow-y: auto; }
 .task-item { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; color: var(--ink); }
