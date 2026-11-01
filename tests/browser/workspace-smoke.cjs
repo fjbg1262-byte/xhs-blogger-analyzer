@@ -50,6 +50,14 @@ const OUT = process.env.WORKSPACE_SHOT || path.resolve(__dirname, "..", "..", "d
   const pagerText = (await page.locator(".pager span").innerText()).trim();
   add("pagination", page1 === 50 && page2 === 50 && pagerText.includes("2 / 2"), `${page1}/${page2} ${pagerText}`);
 
+  // 笔记详情按需加载：列表只带预览，打开抽屉再取正文
+  await page.locator(".note-table tbody tr").first().click();
+  await page.waitForSelector(".drawer", { timeout: 8000 });
+  await page.waitForSelector(".body-meta", { timeout: 10000 });
+  const bodyMeta = (await page.locator(".body-meta").innerText()).trim();
+  add("note_detail_on_demand", bodyMeta.includes("正文"), bodyMeta);
+  await page.locator(".drawer header button").click();
+
   // 新建采集表单：打开、校验、收起（不真的发起网络采集）
   await page.locator(".new-btn").click();
   add("collection_form", await page.locator(".capture-form").isVisible());

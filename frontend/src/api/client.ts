@@ -70,6 +70,7 @@ export const taskAPI = {
 export const workspaceAPI = {
   tasks: () => api.get('/workspace/tasks'),
   task: (id: number) => api.get(`/workspace/tasks/${id}`),
+  note: (taskId: number, noteId: string) => api.get(`/workspace/tasks/${taskId}/notes/${encodeURIComponent(noteId)}`),
   progress: (id: number) => api.get(`/workspace/tasks/${id}/progress`),
   stop: (id: number) => api.post(`/workspace/tasks/${id}/stop`),
   retry: (id: number, maxCount = 10) => api.post(`/workspace/tasks/${id}/retry?max_count=${maxCount}`),

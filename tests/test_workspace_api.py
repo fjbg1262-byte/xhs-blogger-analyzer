@@ -171,6 +171,27 @@ class WorkspaceApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/workspace/tasks/1").status_code, 404)
         self.assertEqual(self.client.get("/api/workspace/tasks/1/export").status_code, 404)
 
+    def test_note_list_uses_preview_and_detail_fetches_body(self):
+        payload = self.client.get("/api/workspace/tasks/1").json()
+        first = payload["notes"][0]
+        self.assertIn("body_preview", first)
+        self.assertNotIn("body", first)
+        self.assertTrue(first["has_body"])
+        self.assertGreater(first["body_length"], 0)
+        detail = self.client.get(f"/api/workspace/tasks/1/notes/{first['id']}").json()
+        self.assertEqual(detail["id"], first["id"])
+        self.assertEqual(detail["body"], "全程分三段，共5.5小时。")
+        self.assertEqual(detail["detail_status"], "成功")
+        self.assertEqual(self.client.get("/api/workspace/tasks/1/notes/nope").status_code, 404)
+
+    def test_progress_reports_four_stages(self):
+        finished = self.client.get("/api/workspace/tasks/1/progress").json()
+        self.assertEqual([step["label"] for step in finished["steps"]],
+                         ["准备任务", "读取主页列表", "补充正文与标签", "保存结果"])
+        self.assertTrue(all(step["done"] for step in finished["steps"]))
+        running = self.client.get("/api/workspace/tasks/2/progress").json()
+        self.assertTrue(running["steps"][0]["active"])
+        self.assertFalse(running["steps"][0]["done"])
     def test_stop_completed_task_conflicts(self):
         self.assertEqual(self.client.post("/api/workspace/tasks/1/stop").status_code, 409)
         with patch("backend.tasks.worker._cancel_task", return_value=True):

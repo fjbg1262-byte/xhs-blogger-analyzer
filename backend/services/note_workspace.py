@@ -59,11 +59,16 @@ def is_incomplete(row) -> bool:
 
 
 def note_view(row):
-    """Map one dataset row to the note shape used by the workspace UI."""
+    """Map one dataset row to the note shape used by the workspace UI.
+
+    The list keeps only a short body preview; the full body, images and video
+    URL are served per note by ``note_detail`` so a 100-note payload stays small.
+    """
     likes = _count(row, "liked_count")
     collected = _count(row, "collected_count")
     comments = _count(row, "comment_count")
     shares = _count(row, "share_count")
+    body = row.get("content_text") or ""
     return {
         "id": str(row.get("note_id") or ""),
         "title": row.get("title") or "未获取标题",
@@ -77,7 +82,9 @@ def note_view(row):
         "engagement": engagement_of(row),
         "tags": [str(tag) for tag in (row.get("tags") or []) if str(tag).strip()],
         "cover_url": row.get("cover_url") or "",
-        "body": row.get("content_text") or "",
+        "body_preview": body[:200],
+        "body_length": len(body),
+        "has_body": bool(body.strip()),
         "note_url": row.get("note_url") or "",
         "sticky": bool(row.get("sticky")),
         "incomplete": is_incomplete(row),
@@ -89,6 +96,31 @@ def note_view(row):
 
 def notes_view(dataset):
     return [note_view(row) for row in (dataset.get("rows") or [])]
+
+
+def find_note(dataset, note_id):
+    for row in dataset.get("rows") or []:
+        if str(row.get("note_id")) == str(note_id):
+            return row
+    return None
+
+
+def note_detail(row):
+    """Full detail payload for one note, fetched when the drawer opens."""
+    if row is None:
+        return None
+    view = note_view(row)
+    view.update({
+        "body": row.get("content_text") or "",
+        "image_urls": list(row.get("image_urls") or []),
+        "video_url": row.get("video_url") or "",
+        "detail_status": row.get("detail_status") or "",
+        "text_status": row.get("text_status") or "",
+        "tags_status": row.get("tags_status") or "",
+        "metric_source": row.get("metric_source") or "",
+        "count_precision": row.get("count_precision") or "",
+    })
+    return view
 
 
 def _evidence(dataset):
@@ -157,6 +189,47 @@ def dataset_stats(dataset):
         "body_count": sum(1 for row in rows if (row.get("content_text") or "").strip()),
         "failed_count": sum(1 for row in rows if is_incomplete(row)),
     }
+
+
+STAGE_STEPS = [
+    ("prepare", "准备任务"),
+    ("read", "读取主页列表"),
+    ("detail", "补充正文与标签"),
+    ("save", "保存结果"),
+]
+
+
+def progress_steps(task, dataset):
+    """Four-stage collection progress derived from task status and the collector stage text."""
+    stage_text = ""
+    if task.run_log:
+        try:
+            payload = json.loads(task.run_log)
+            if isinstance(payload, dict):
+                stage_text = str(payload.get("stage") or "")
+        except (json.JSONDecodeError, TypeError):
+            stage_text = ""
+    status = task.status or "pending"
+    if status in ("completed", "partial", "cancelled", "failed"):
+        current = len(STAGE_STEPS)
+    elif "保存" in stage_text:
+        current = 3
+    elif "补充详情" in stage_text:
+        current = 2
+    elif "读取" in stage_text:
+        current = 1
+    else:
+        current = 0
+    steps = [
+        {
+            "key": key,
+            "label": label,
+            "done": index < current,
+            "active": index == current and status in ("pending", "running"),
+        }
+        for index, (key, label) in enumerate(STAGE_STEPS)
+    ]
+    return {"stage": stage_text or STATUS_LABELS.get(status, status), "steps": steps}
 
 
 def task_card(task, dataset):

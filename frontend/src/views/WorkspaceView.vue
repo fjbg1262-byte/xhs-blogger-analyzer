@@ -80,10 +80,18 @@
           <p v-else-if="!cookies.length" class="form-hint">还没有登录状态：先在浏览器插件里对任意主页点一次采集，插件会保存登录状态。</p>
         </section>
 
-        <div v-if="startingTaskId && (!detail || detail.task.id !== startingTaskId)" class="state">
-          <b>正在采集 #{{ startingTaskId }}</b>
-          <span>{{ notice || '正在读取主页和正文，完成后会自动打开结果。' }}</span>
-        </div>
+        <section v-if="startingTaskId && (!detail || detail.task.id !== startingTaskId)" class="progress-panel">
+          <div class="progress-head">
+            <div><b>正在采集 #{{ startingTaskId }}</b><span>{{ notice || '正在读取主页…' }}</span></div>
+            <button class="btn ghost" type="button" @click="stopNewTask">停止采集</button>
+          </div>
+          <div class="progress-stages">
+            <div v-for="step in stageSteps" :key="step.key" :class="{ done: step.done, active: step.active }">
+              <i>{{ step.done ? '✓' : step.active ? '●' : '' }}</i><span>{{ step.label }}</span>
+            </div>
+          </div>
+          <p v-if="stageText" class="progress-note">{{ stageText }}</p>
+        </section>
 
         <p v-if="loading" class="state">正在读取采集结果…</p>
         <div v-else-if="error" class="state error">{{ error }}</div>
@@ -187,7 +195,7 @@
                 <tr><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评 / 享</th><th>标签</th><th>来源</th><th>采集</th></tr>
               </thead>
               <tbody>
-                <tr v-for="note in pagedNotes" :key="note.id" @click="activeNote = note">
+                <tr v-for="note in pagedNotes" :key="note.id" @click="openNote(note)">
                   <td>
                     <span class="note-cell">
                       <span class="thumb">
@@ -213,7 +221,7 @@
           </div>
 
           <div v-else class="note-grid">
-            <article v-for="note in pagedNotes" :key="note.id" class="note-card" @click="activeNote = note">
+            <article v-for="note in pagedNotes" :key="note.id" class="note-card" @click="openNote(note)">
               <div class="card-cover">
                 <img v-if="note.cover_url" :src="note.cover_url" loading="lazy" referrerpolicy="no-referrer" alt="" @error="broken[note.id] = true" v-show="!broken[note.id]" />
                 <b v-if="!note.cover_url || broken[note.id]">{{ note.type }}</b>
@@ -237,7 +245,7 @@
       <aside v-if="activeNote" class="drawer">
         <header>
           <span>笔记详情</span>
-          <button type="button" aria-label="关闭" @click="activeNote = null">×</button>
+          <button type="button" aria-label="关闭" @click="closeNote">×</button>
         </header>
         <div v-if="activeNote.cover_url && !broken[activeNote.id]" class="drawer-cover">
           <img :src="activeNote.cover_url" referrerpolicy="no-referrer" alt="" @error="broken[activeNote.id] = true" />
@@ -259,7 +267,9 @@
           </div>
           <div class="drawer-section">
             <span>正文</span>
-            <p>{{ activeNote.body || '这一篇没有采集到正文。' }}</p>
+            <p v-if="loadingDetail">正在读取正文…</p>
+            <p v-else>{{ activeDetail?.body || activeNote.body_preview || '这一篇没有采集到正文。' }}</p>
+            <small v-if="activeDetail && activeDetail.body_length > 0" class="body-meta">正文 {{ activeDetail.body_length }} 字</small>
           </div>
           <div class="drawer-section">
             <span>标签</span>
@@ -313,11 +323,23 @@ interface NoteRow {
   engagement: number
   tags: string[]
   cover_url: string
-  body: string
+  body_preview: string
+  body_length: number
+  has_body: boolean
   note_url: string
   incomplete: boolean
   failure: string
   missing_fields: string[]
+}
+interface NoteDetail extends NoteRow {
+  body: string
+  image_urls: string[]
+  video_url: string
+  detail_status: string
+  text_status: string
+  tags_status: string
+  metric_source: string
+  count_precision: string
 }
 interface CookieRow {
   id: number
@@ -371,6 +393,10 @@ const typeFilter = ref<'all' | '图文' | '视频' | '未完成'>('all')
 const onlyIncomplete = ref(false)
 const viewMode = ref<'table' | 'cards'>('table')
 const activeNote = ref<NoteRow | null>(null)
+const activeDetail = ref<NoteDetail | null>(null)
+const loadingDetail = ref(false)
+const stageSteps = ref<{ key: string; label: string; done: boolean; active: boolean }[]>([])
+const stageText = ref('')
 const cookies = ref<CookieRow[]>([])
 const showForm = ref(false)
 const profileUrl = ref('')
@@ -398,7 +424,7 @@ const visibleNotes = computed(() => {
     const tabOk =
       typeFilter.value === 'all' ||
       (typeFilter.value === '未完成' ? note.incomplete : note.type === typeFilter.value)
-    const queryOk = !query || `${note.title} ${note.body} ${note.tags.join(' ')}`.toLowerCase().includes(query)
+    const queryOk = !query || `${note.title} ${note.body_preview} ${note.tags.join(' ')}`.toLowerCase().includes(query)
     return tabOk && queryOk && (!onlyIncomplete.value || note.incomplete)
   })
   const sorters: Record<string, (a: NoteRow, b: NoteRow) => number> = {
@@ -452,7 +478,7 @@ async function loadList() {
 
 async function select(id: number) {
   selectedId.value = id
-  activeNote.value = null
+  closeNote()
   notice.value = ''
   page.value = 1
   try {
@@ -461,6 +487,47 @@ async function select(id: number) {
   } catch (exc: any) {
     detail.value = null
     error.value = exc?.response?.data?.detail || '这个任务还没有可用的采集结果。'
+  }
+}
+
+async function openNote(note: NoteRow) {
+  activeNote.value = note
+  activeDetail.value = null
+  loadingDetail.value = false
+  if (!detail.value) return
+  loadingDetail.value = true
+  try {
+    const response = await workspaceAPI.note(detail.value.task.id, note.id)
+    activeDetail.value = response.data as NoteDetail
+  } catch {
+    /* 详情读取失败时保留列表里的正文预览 */
+  } finally {
+    loadingDetail.value = false
+  }
+}
+
+function closeNote() {
+  activeNote.value = null
+  activeDetail.value = null
+  loadingDetail.value = false
+}
+
+function defaultStages() {
+  return [
+    { key: 'prepare', label: '准备任务', done: false, active: true },
+    { key: 'read', label: '读取主页列表', done: false, active: false },
+    { key: 'detail', label: '补充正文与标签', done: false, active: false },
+    { key: 'save', label: '保存结果', done: false, active: false },
+  ]
+}
+
+async function stopNewTask() {
+  if (!startingTaskId.value) return
+  try {
+    await workspaceAPI.stop(startingTaskId.value)
+    notice.value = '已请求停止，正在保存已采集数据…'
+  } catch (exc: any) {
+    notice.value = exc?.response?.data?.detail || '停止失败，请稍后重试。'
   }
 }
 
@@ -492,6 +559,8 @@ async function startCollection() {
     const response = await libraryAPI.create(url, cookieId.value)
     const id = response.data.id as number
     startingTaskId.value = id
+    stageSteps.value = defaultStages()
+    stageText.value = '准备任务'
     notice.value = '已开始采集，正在读取主页…'
     showForm.value = false
     profileUrl.value = ''
@@ -510,6 +579,8 @@ function pollNewTask(id: number) {
     try {
       const progress = await workspaceAPI.progress(id)
       const task = progress.data.task as TaskCard
+      stageSteps.value = (progress.data.steps as typeof stageSteps.value) || stageSteps.value
+      stageText.value = (progress.data.stage as string) || ''
       notice.value = `${task.status_label}：已整理 ${task.note_count} 篇`
       if (!['pending', 'running'].includes(task.status)) {
         clearInterval(pollTimer)
@@ -661,6 +732,19 @@ onUnmounted(() => clearInterval(pollTimer))
 .form-hint { margin: 8px 0 0; font-size: 11px; color: var(--muted-2); }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; font-size: 11.5px; color: var(--muted); }
 .pager .btn { min-height: 30px; padding: 5px 12px; font-size: 11.5px; }
+.progress-panel { margin-bottom: 18px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 7px; }
+.progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.progress-head b { font-family: var(--serif); font-size: 15px; }
+.progress-head span { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.progress-stages { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; }
+.progress-stages > div { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted-2); }
+.progress-stages > div.done { color: #2f7a55; }
+.progress-stages > div.active { color: var(--xhs-dark); font-weight: 600; }
+.progress-stages i { font-style: normal; width: 14px; height: 14px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); font-size: 9px; }
+.progress-stages > div.done i { background: #e7f2e9; border-color: #cfe2d5; }
+.progress-stages > div.active i { background: #fff0f2; border-color: #f3c3cc; }
+.progress-note { margin: 10px 0 0; font-size: 10.5px; color: var(--muted-2); }
+.body-meta { display: block; margin-top: 6px; font-size: 9.5px; color: var(--muted-2); }
 .side-label { margin: 16px 6px 6px; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
 .task-list { display: grid; gap: 2px; overflow-y: auto; }
 .task-item { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; color: var(--ink); }

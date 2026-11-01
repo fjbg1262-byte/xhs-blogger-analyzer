@@ -17,8 +17,11 @@ from backend.routers.library import export as library_export
 from backend.services.note_workspace import (
     account_card,
     dataset_stats,
+    find_note,
     load_dataset,
+    note_detail,
     notes_view,
+    progress_steps,
     task_card,
 )
 
@@ -103,6 +106,7 @@ def get_progress(task_id: int, db: Session = Depends(get_db), user=Depends(get_c
     task = _collection_task(db, task_id, user["id"])
     dataset = load_dataset(task_id)
     card = task_card(task, dataset)
+    stages = progress_steps(task, dataset)
     return {
         "task": card,
         "counts": {
@@ -110,8 +114,23 @@ def get_progress(task_id: int, db: Session = Depends(get_db), user=Depends(get_c
             "body_count": card["body_count"],
             "failed_count": card["failed_count"],
         },
-        "stage": (dataset or {}).get("stop_reason", "") or task.error_message or "",
+        "stage": stages["stage"],
+        "steps": stages["steps"],
+        "stop_reason": (dataset or {}).get("stop_reason", "") or task.error_message or "",
     }
+
+
+@router.get("/tasks/{task_id}/notes/{note_id}")
+def get_note(task_id: int, note_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Full text and media for one note; the list only carries a preview."""
+    _collection_task(db, task_id, user["id"])
+    dataset = load_dataset(task_id)
+    if dataset is None:
+        raise HTTPException(404, MSG_NO_DATA)
+    row = find_note(dataset, note_id)
+    if row is None:
+        raise HTTPException(404, "这条笔记不在当前任务的数据里。")
+    return note_detail(row)
 
 
 @router.get("/tasks/{task_id}/export")
