@@ -133,6 +133,11 @@
                 <div><b>{{ task.account }}</b><small>{{ task.time }} · {{ task.count }} 篇</small></div>
                 <span class="task-body">{{ task.body }}</span>
               </div>
+              <div class="export-status">
+                <span>导出状态</span>
+                <b>xlsx 备份已生成</b>
+                <small>今天 14:35 · 96 篇含正文</small>
+              </div>
             </section>
             <section class="panel workflow">
               <p class="eyebrow">THREE STEPS</p>
@@ -204,7 +209,7 @@
 
           <div v-if="viewMode === 'table'" class="table-wrap">
             <table class="note-table">
-              <thead><tr><th class="check"><input type="checkbox" :checked="allVisibleSelected" @change="toggleAll" /></th><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评</th><th>标签</th><th>采集</th><th /></tr></thead>
+              <thead><tr><th class="check"><input type="checkbox" :checked="allVisibleSelected" @change="toggleAll" /></th><th>笔记</th><th>类型</th><th>发布时间</th><th>赞 / 藏 / 评 / 享</th><th>标签</th><th>来源</th><th>采集</th><th /></tr></thead>
               <tbody>
                 <tr v-for="note in visibleNotes" :key="note.id" :class="{ selected: selectedIds.includes(note.id) }">
                   <td class="check"><input type="checkbox" :checked="selectedIds.includes(note.id)" @change="toggleSelect(note.id)" /></td>
@@ -216,8 +221,9 @@
                   </td>
                   <td><span class="type-pill" :class="note.type === '视频' ? 'video' : 'image'">{{ note.type }}</span></td>
                   <td>{{ note.published }}</td>
-                  <td><b>{{ compact(note.likes) }}</b><span class="muted"> / {{ compact(note.collected) }} / {{ compact(note.comments) }}</span></td>
+                  <td class="engage"><span>赞 {{ compact(note.likes) }}</span><span>藏 {{ compact(note.collected) }}</span><span>评 {{ compact(note.comments) }}</span><span>享 {{ compact(note.shares) }}</span></td>
                   <td><span class="tags"><i v-for="tag in note.tags.slice(0, 2)" :key="tag">{{ tag }}</i></span></td>
+                  <td><a class="source-col" :href="demoLink(note.id)" target="_blank" rel="noreferrer" title="来源链接">↗</a></td>
                   <td><span v-if="note.incomplete" class="status-warn" :title="note.failure">未完成</span><span v-else class="status-ok">已完成</span></td>
                   <td><button class="more" aria-label="查看详情" @click="activeNote = note">···</button></td>
                 </tr>
@@ -244,7 +250,7 @@
             <div>
               <p class="eyebrow">ACCOUNT DIAGNOSIS</p>
               <h1>账号八维分析</h1>
-              <p class="lede">{{ currentAccount.name }} · {{ notes.length }} 篇笔记 · 最近采集 今天 14:32</p>
+              <p class="lede">{{ currentAccount.name }} · {{ notes.length }} 篇 · 图文 {{ imageShare }}% / 视频 {{ videoShare }}% · 最近发布 {{ latestPublish }} · 最近采集 今天 14:32</p>
             </div>
             <div class="head-actions">
               <button class="btn ghost" @click="page = 'compare'">加入账号对比</button>
@@ -315,6 +321,15 @@
             </section>
 
             <section v-else-if="analysisTab === 'drafts'" class="tab-panel">
+              <div class="draft-plan">
+                <div class="panel-title">
+                  <div><p class="eyebrow">ONE WEEK PLAN</p><h3>一周执行顺序</h3></div>
+                  <small>复盘指标：收藏中位数 · 分享次数 · 评论率</small>
+                </div>
+                <div class="week-plan-grid">
+                  <article v-for="plan in weekPlan" :key="plan.day"><span>{{ plan.day }}</span><b>{{ plan.title }}</b><p>{{ plan.copy }}</p></article>
+                </div>
+              </div>
               <div class="draft-list">
                 <article v-for="(topic, index) in topics" :key="topic.title" class="draft">
                   <div class="draft-index">{{ String(index + 1).padStart(2, '0') }}</div>
@@ -374,6 +389,7 @@
             </button>
           </div>
           <p class="hint">已选 {{ comparedAccounts.length }} 个账号（最多 5 个，至少保留 2 个）。</p>
+          <p v-if="volumeHint" class="volume-hint">{{ volumeHint }}</p>
 
           <div v-if="compareReady" class="compare-body">
             <div class="compare-cards">
@@ -428,7 +444,7 @@
           <div class="feishu">
             <section class="panel feishu-preview">
               <div class="preview-top">
-                <div><b>{{ currentAccount.name }}内容库</b><span>6 张数据表</span></div>
+                <div><b>{{ deliveryAccount.name }}内容库</b><span>6 张数据表</span></div>
                 <div class="preview-tools"><span>⌕</span><button type="button">+ 新建记录</button></div>
               </div>
               <div class="preview-body">
@@ -458,8 +474,10 @@
             <aside class="panel delivery">
               <div class="delivery-head">
                 <p class="eyebrow">DELIVERY TARGET</p>
-                <h2>{{ currentAccount.name }}</h2>
-                <p>100 篇笔记 · 96 篇正文</p>
+                <select v-model="deliveryAccountId" class="account-select" aria-label="选择交付账号">
+                  <option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }} · {{ account.notes }} 篇</option>
+                </select>
+                <p>{{ deliveryAccount.notes }} 篇笔记 · {{ Math.round(deliveryAccount.notes * 0.96) }} 篇正文</p>
               </div>
               <div class="table-options">
                 <label v-for="table in feishuTables" :key="table.name">
@@ -774,6 +792,9 @@ const visibleNotes = computed(() => {
 })
 const allVisibleSelected = computed(() => visibleNotes.value.length > 0 && visibleNotes.value.every(note => selectedIds.value.includes(note.id)))
 const medianEngagement = computed(() => median(notes.value.map(total)))
+const imageShare = computed(() => Math.round(notes.value.filter(note => note.type === '图文').length / notes.value.length * 100))
+const videoShare = computed(() => 100 - imageShare.value)
+const latestPublish = computed(() => [...notes.value].sort((a, b) => b.published.localeCompare(a.published))[0]?.published || '—')
 
 const overview = computed(() => {
   const totals = notes.value.map(total)
@@ -856,6 +877,14 @@ const compareRows = computed(() =>
     values: comparedAccounts.value.map(account => compareMatrix[account.id]?.[index] || '未获取'),
   })),
 )
+const volumeHint = computed(() => {
+  if (comparedAccounts.value.length < 2) return ''
+  const counts = comparedAccounts.value.map(account => account.notes)
+  const min = Math.min(...counts)
+  const max = Math.max(...counts)
+  if (!min || max / min < 1.25) return ''
+  return `笔记数差异较大（${min} 至 ${max} 篇，相差 ${Math.round((max / min - 1) * 100)}%）：对比时看结构和比例，不直接比绝对值。`
+})
 const weekPlan = [
   { day: '周一', title: '整理本周三个目的地', copy: '按车费、时长和返程三个字段建表，先选出可复用的目的地。' },
   { day: '周二', title: '发布路线一篇', copy: '50 元以内公交路线，封面统一大字地名 + 成本。' },
@@ -875,6 +904,8 @@ const feishuTables = [
 const selectedTables = ref(feishuTables.map(item => item.name))
 const generatingFeishu = ref(false)
 const generatedFeishu = ref(false)
+const deliveryAccountId = ref(currentAccount.value.id)
+const deliveryAccount = computed(() => accounts.find(account => account.id === deliveryAccountId.value) || currentAccount.value)
 
 const tasks = [
   { id: 'task-08', account: '野路手册', status: '已完成', tone: 'ok', time: '今天 14:20', end: '今天 14:32', count: 100, target: 100, body: '96 篇', backup: 'xlsx', reason: '' },
@@ -1615,6 +1646,18 @@ onUnmounted(() => {
 .cover-j { background: linear-gradient(135deg, #6a4a2e, #43301d); }
 .cover-k { background: linear-gradient(135deg, #7d4a52, #4f2b31); }
 .cover-l { background: linear-gradient(135deg, #4a5560, #2f3841); }
+
+.engage { display: flex; gap: 9px; white-space: nowrap; font-size: 11px; color: var(--muted); }
+.source-col { color: var(--rust); text-decoration: none; font-size: 12px; }
+.source-col:hover { text-decoration: underline; }
+.export-status { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 10.5px; color: var(--muted); }
+.export-status > span { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #9a8b74; }
+.export-status b { color: var(--rust); font-weight: 600; }
+.export-status small { margin-left: auto; color: var(--muted-2); }
+.account-select { width: 100%; margin: 6px 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-family: var(--serif); font-size: 14px; color: var(--ink); }
+.draft-plan { margin-bottom: 14px; padding: 14px 16px; background: #fbf7f0; border: 1px solid var(--line-soft); border-radius: 6px; }
+.draft-plan .week-plan-grid { margin-top: 10px; }
+.volume-hint { margin: 8px 0 0; padding: 8px 11px; border: 1px solid #ecdcb9; background: #fdf6e7; border-radius: 5px; font-size: 11px; color: #8a6a2a; }
 
 @media (max-width: 1180px) {
   .content { padding: 24px 22px 56px; }

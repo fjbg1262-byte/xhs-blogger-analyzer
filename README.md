@@ -16,10 +16,11 @@
 
 ## 产品演示（纯前端 Demo）
 
-Phase 1 的纯前端 Demo 就是本地程序的入口页：启动后打开 `http://127.0.0.1:8000/` 会直接进入 Demo，开发时 `npm run dev` 后访问 `/demo`。所有数据为模拟数据，不访问小红书；右上角「进入真实工具」才是需要登录的笔记库。
+Phase 1 的纯前端 Demo 就是本地程序的入口页，产品名「薯光」：启动后打开 `http://127.0.0.1:8000/` 会直接进入 Demo，开发时 `npm run dev` 后访问 `/demo`。所有数据为模拟数据，不访问小红书；右上角「进入真实工具」才是需要登录的笔记库。
 
-- 页面：首页与采集进度、笔记库（表格 / 封面）、单篇详情、账号八维分析、2 至 5 个账号对标、飞书交付、采集记录、设置。
-- 深链接：每页都可以单独打开给评审，例如 `?page=compare`、`?page=feishu`；点击左侧导航时地址栏会同步当前页，刷新不丢位置。
+- 页面：首页与采集进度、笔记库（表格 / 封面）、单篇详情、账号八维分析（经营总览 / 八维解读 / 3 个选题与草稿 / 原始依据）、2 至 5 个账号对标、飞书交付、采集记录、设置。
+- 深链接：每页都可以单独打开给评审，例如 `?page=compare`、`?page=analysis&tab=drafts`；点击左侧导航时地址栏会同步当前页，刷新不丢位置。
+- 功能验收：`node tests/browser/acceptance.cjs`，对照开发顺序 Phase 1 与 PRD 第 5 章逐条检查，明细见 [Phase 1 验收记录](docs/PHASE1_ACCEPTANCE.md)。
 - 点击验收：`node tests/browser/demo-smoke.cjs`（用本机 Edge 无头跑完整点击流程）。
 - 页面截图：`node tests/browser/demo-shots.cjs`，输出到 `data/tasks/verification/demo-shots/`。
 
@@ -29,6 +30,7 @@ Phase 1 的纯前端 Demo 就是本地程序的入口页：启动后打开 `http
 - [安装、AI 配置、复核与导出](docs/ORGANIZER_USER_GUIDE.md)
 - [目录、版本和构建规则](docs/PROJECT_LAYOUT.md)
 - [当前进度与验证](docs/IMPLEMENTATION_STATUS.md)
+- [Phase 1 前端验收记录](docs/PHASE1_ACCEPTANCE.md)
 - [测试记录及真实环境待验收项](docs/VERIFICATION.md)
 - [商品化竞品拆解、产品定位、飞书规范与开发路线](docs/product/README.md)
 
