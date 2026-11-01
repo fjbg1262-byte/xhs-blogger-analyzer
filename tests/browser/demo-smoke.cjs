@@ -19,9 +19,11 @@ const BASE = process.env.DEMO_BASE_URL || "http://127.0.0.1:4173";
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const checks = [];
   const add = (name, passed) => checks.push([name, Boolean(passed)]);
+  const tab = label => page.locator(".tabs button").filter({ hasText: label }).click();
 
   await page.goto(`${BASE}/demo`, { waitUntil: "networkidle" });
   add("home", await page.getByRole("heading", { name: "把主页内容，整理成可用的表格" }).isVisible());
+  add("brand_name", (await page.locator(".brand-copy strong").innerText()).includes("薯光"));
 
   await page.getByRole("button", { name: "整理当前主页" }).click();
   add("collection_counts", await page.locator(".progress-counts").isVisible());
@@ -37,9 +39,9 @@ const BASE = process.env.DEMO_BASE_URL || "http://127.0.0.1:4173";
 
   await page.getByRole("button", { name: "查看笔记库" }).click();
   await page.locator(".note-cell").first().click();
-  add("note_detail", await page.locator(".note-drawer").isVisible());
-  add("note_source_link", (await page.locator(".note-drawer .source-link").innerText()).includes("xiaohongshu.com"));
-  await page.locator(".note-drawer header button").click();
+  add("note_detail", await page.locator(".note-drawer, .drawer").first().isVisible());
+  add("note_source_link", (await page.locator(".drawer .source-link").innerText()).includes("xiaohongshu.com"));
+  await page.locator(".drawer header button").click();
   await page.locator(".view-switch button").nth(1).click();
   add("cover_view", (await page.locator(".note-card").count()) > 0);
 
@@ -57,37 +59,44 @@ const BASE = process.env.DEMO_BASE_URL || "http://127.0.0.1:4173";
   add("incomplete_filter", (await page.locator(".note-card").count()) === 1);
   await page.locator(".note-card").first().click();
   add("incomplete_reason", await page.locator(".drawer-alert").isVisible());
-  await page.locator(".note-drawer header button").click();
+  await page.locator(".drawer header button").click();
 
-  await page.locator(".demo-nav button").filter({ hasText: "账号分析" }).click();
+  await page.locator(".demo-nav, .nav").first().locator("button").filter({ hasText: "账号分析" }).click();
+  add("analysis_kpis", (await page.locator(".kpi").count()) === 4);
+  add("analysis_insights", (await page.locator(".insight").count()) === 4);
+  await tab("八维解读");
   add("eight_dimensions", (await page.locator(".dimension-card").count()) === 8);
-  add("three_topics", (await page.locator(".topic-grid article").count()) === 3);
-  await page.locator(".dimension-card button").first().click();
-  add("dimension_advice", await page.locator(".dimension-advice").isVisible());
-  add("topic_outline", (await page.locator(".topic-grid article").first().locator(".topic-detail li").count()) >= 3);
+  add("dimension_advice", await page.locator(".dimension-advice").first().isVisible());
+  await tab("3 个选题与草稿");
+  add("three_drafts", (await page.locator(".draft").count()) === 3);
+  add("draft_outline", (await page.locator(".draft .outline li").first().count()) >= 3 || (await page.locator(".draft").first().locator(".outline li").count()) >= 3);
+  await tab("原始依据");
+  add("evidence_rows", (await page.locator(".evidence-table tbody tr").count()) === 6);
 
-  await page.locator(".demo-nav button").filter({ hasText: "账号对比" }).click();
+  await page.locator(".demo-nav, .nav").first().locator("button").filter({ hasText: "账号对比" }).click();
   add("comparison_rows", (await page.locator(".compare-row").count()) === 9);
   await page.locator(".compare-select button").filter({ hasText: "小城慢拍" }).click();
   add("comparison_three_accounts", (await page.locator(".compare-row:not(.header) p").count()) === 24);
   add("comparison_week_plan", (await page.locator(".week-plan-grid article").count()) === 5);
 
-  await page.locator(".demo-nav button").filter({ hasText: "飞书交付" }).click();
+  await page.locator(".demo-nav, .nav").first().locator("button").filter({ hasText: "飞书交付" }).click();
   await page.getByRole("button", { name: "生成飞书导入包" }).click();
   await page.waitForSelector(".delivery-success", { timeout: 5000 });
   add("feishu_generated", await page.locator(".delivery-success").isVisible());
 
-  await page.locator(".demo-nav button").filter({ hasText: "采集记录" }).click();
+  await page.locator(".demo-nav, .nav").first().locator("button").filter({ hasText: "采集记录" }).click();
   add("history_rows", (await page.locator(".history-table tbody tr").count()) === 4);
   add("history_finish_time", (await page.locator(".history-table .finish-time").count()) === 4);
   add("history_failure_reason", (await page.locator(".history-table .reason-cell").count()) === 2);
 
-  await page.locator(".sidebar-bottom button").filter({ hasText: "设置" }).click();
-  add("settings_cards", (await page.locator(".settings-grid article").count()) === 4);
+  await page.locator(".side-foot button").filter({ hasText: "设置" }).click();
+  add("settings_cards", (await page.locator(".settings-grid article").count()) === 6);
 
+  await page.goto(`${BASE}/demo?page=analysis&tab=drafts`, { waitUntil: "networkidle" });
+  add("deep_link_tab", (await page.locator(".draft").count()) === 3);
   await page.goto(`${BASE}/demo?page=compare`, { waitUntil: "networkidle" });
   add("deep_link_page", await page.getByRole("heading", { name: "账号对标" }).isVisible());
-  await page.locator(".demo-nav button").filter({ hasText: "采集记录" }).click();
+  await page.locator(".demo-nav, .nav").first().locator("button").filter({ hasText: "采集记录" }).click();
   add("url_follows_nav", new URL(page.url()).searchParams.get("page") === "history");
 
   await browser.close();

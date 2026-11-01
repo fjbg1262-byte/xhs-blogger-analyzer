@@ -2,9 +2,14 @@
   <div class="app-container" :class="{ 'demo-mode': route.meta.standalone }">
     <header v-if="!route.meta.standalone" class="app-header">
       <div class="brand-lockup">
-        <div class="brand-mark" aria-hidden="true">析</div>
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="21" height="21">
+            <path d="M15 3.6 17.7 12.3 26.4 15 17.7 17.7 15 26.4 12.3 17.7 3.6 15 12.3 12.3Z" fill="currentColor" />
+            <path d="M24.1 3.4 24.9 6 27.5 6.8 24.9 7.6 24.1 10.2 23.3 7.6 20.7 6.8 23.3 6Z" fill="currentColor" opacity=".85" />
+          </svg>
+        </div>
         <div class="brand-copy">
-          <strong>内容整理与 AI 交付</strong>
+          <strong>薯光</strong>
           <span>0.3.0-beta.6 工作台</span>
         </div>
       </div>
@@ -45,8 +50,8 @@ function logout() {
 
 <style>
 :root {
-  --brand-red: #ff3158;
-  --brand-red-dark: #d9133f;
+  --brand-red: #ff2442;
+  --brand-red-dark: #d8102f;
   --brand-red-soft: #fff0f3;
   --brand-yellow: #ffd43b;
   --brand-green: #1ca96b;
@@ -68,7 +73,7 @@ body {
   letter-spacing: 0;
 }
 .app-container { min-height: 100vh; display: flex; flex-direction: column; }
-.app-container.demo-mode { display: block; background: #f6f8fb; }
+.app-container.demo-mode { display: block; background: #f5f0e7; }
 .app-header {
   background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid var(--line);
@@ -89,15 +94,13 @@ body {
   height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--brand-red);
   color: #fff;
-  font-size: 20px;
-  font-weight: 900;
-  box-shadow: 4px 4px 0 var(--brand-yellow);
+  box-shadow: 0 6px 16px rgba(255, 36, 66, 0.26);
 }
 .brand-copy { display: flex; flex-direction: column; line-height: 1.2; }
-.brand-copy strong { font-size: 17px; font-weight: 900; }
+.brand-copy strong { font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
 .brand-copy span { margin-top: 4px; color: var(--brand-red-dark); font-size: 11px; font-weight: 800; }
 .header-nav { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .header-nav a {
