@@ -3,12 +3,14 @@
 import csv
 import io
 import json
+from datetime import datetime
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -229,6 +231,43 @@ class WorkspaceApiTests(unittest.TestCase):
         self.assertEqual(by_id["notes"][0]["id"], picked)
         csv_ids = self.client.get(f"/api/workspace/tasks/1/export?format=csv&ids={picked}")
         self.assertEqual(len(list(csv.reader(io.StringIO(csv_ids.text)))), 2)
+    def test_feishu_package_sheets_and_cell_types(self):
+        response = self.client.get("/api/workspace/tasks/1/export?format=feishu")
+        self.assertEqual(response.status_code, 200, response.text)
+        workbook = load_workbook(io.BytesIO(response.content))
+        self.assertEqual(
+            workbook.sheetnames,
+            ["账号总览", "全部笔记", "图文笔记", "视频笔记", "选题清单", "采集记录", "导入说明"],
+        )
+        self.assertEqual(workbook["全部笔记"].max_row, 4)
+        self.assertEqual(workbook["图文笔记"].max_row, 3)
+        self.assertEqual(workbook["视频笔记"].max_row, 2)
+        self.assertEqual(workbook["账号总览"].max_row, 2)
+        self.assertEqual(workbook["采集记录"].max_row, 2)
+
+        header = [cell.value for cell in workbook["全部笔记"][1]]
+        self.assertIn("发布时间", header)
+        self.assertIn("笔记链接", header)
+        date_col = header.index("发布时间") + 1
+        likes_col = header.index("点赞数") + 1
+        url_col = header.index("笔记链接") + 1
+        tags_col = header.index("标签") + 1
+        self.assertIsInstance(workbook["全部笔记"].cell(row=2, column=date_col).value, datetime)
+        self.assertEqual(workbook["全部笔记"].cell(row=2, column=likes_col).value, 10000)
+        self.assertTrue(workbook["全部笔记"].cell(row=2, column=url_col).hyperlink)
+        self.assertIn("\n", str(workbook["全部笔记"].cell(row=2, column=tags_col).value))
+
+        guide = "\n".join(str(cell.value) for line in workbook["导入说明"].iter_rows() for cell in line)
+        self.assertIn("多行文本", guide)
+        self.assertIn("超链接", guide)
+
+    def test_excel_backup_includes_overview(self):
+        response = self.client.get("/api/workspace/tasks/1/export?format=xlsx")
+        self.assertEqual(response.status_code, 200, response.text)
+        workbook = load_workbook(io.BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ["笔记库", "账号总览", "采集说明"])
+        self.assertEqual(workbook["笔记库"].max_row, 4)
+        self.assertEqual(workbook["账号总览"].max_row, 2)
     def test_stop_completed_task_conflicts(self):
         self.assertEqual(self.client.post("/api/workspace/tasks/1/stop").status_code, 409)
         with patch("backend.tasks.worker._cancel_task", return_value=True):

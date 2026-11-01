@@ -121,7 +121,7 @@
               <button class="btn ghost" type="button" :disabled="exporting" @click="download('xlsx')">导出 Excel</button>
               <button class="btn ghost" type="button" :disabled="exporting" @click="download('csv')">导出 CSV</button>
               <button class="btn ghost" type="button" :disabled="exporting" @click="downloadBackup">下载原始数据</button>
-              <button class="btn primary" type="button" :disabled="exporting" @click="download('feishu')">导出飞书导入包</button>
+              <button class="btn primary" type="button" :disabled="exporting" title="6 张工作表 + 导入说明：账号总览 / 全部笔记 / 图文 / 视频 / 选题 / 采集记录" @click="download('feishu')">导出飞书导入包</button>
             </div>
           </div>
 

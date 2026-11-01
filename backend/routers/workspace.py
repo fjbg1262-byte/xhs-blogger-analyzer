@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from backend.database import Account, Task, get_db
 from backend.routers.auth import get_current_user
-from backend.services.note_library import csv_bytes, xlsx_bytes
+from backend.services.feishu_package import build_excel_backup, build_feishu_package
+from backend.services.note_library import csv_bytes
 from backend.services.note_workspace import (
     account_card,
     dataset_path,
@@ -195,7 +196,7 @@ def export(
     user=Depends(get_current_user),
 ):
     """Export the same filtered rows the page shows, so counts always match."""
-    _collection_task(db, task_id, user["id"])
+    task = _collection_task(db, task_id, user["id"])
     dataset = load_dataset(task_id)
     if dataset is None:
         raise HTTPException(404, MSG_NO_DATA)
@@ -207,8 +208,13 @@ def export(
     if format == "csv":
         payload, ext, mime = csv_bytes(rows), "csv", "text/csv; charset=utf-8"
     else:
+        account_row = db.query(Account).filter(Account.id == task.account_id, Account.user_id == user["id"]).first()
+        card = task_card(task, dataset)
+        stats = dataset_stats(dataset, task_id)
+        account = account_card(account_row, task, dataset)
+        builder = build_feishu_package if format == "feishu" else build_excel_backup
         payload, ext, mime = (
-            xlsx_bytes(dataset, rows, feishu=format == "feishu"),
+            builder(rows, dataset, card, stats, account),
             "xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

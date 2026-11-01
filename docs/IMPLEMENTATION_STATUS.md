@@ -30,6 +30,8 @@ Phase 1 的纯前端 Demo 已经成形，并成为本地程序入口：启动后
 
 ## 最近补齐
 
+- Phase 4：飞书导入包升级为账号总览 / 全部笔记 / 图文 / 视频 / 选题 / 采集记录 + 导入说明 7 张表，Excel 备份含账号总览，详见 [Phase 4 飞书导入 2.0](PHASE4_FEISHU_IMPORT.md)。
+
 - Phase 3：笔记库筛选/分页/多选/导出全部挪到服务端，导出条数与页面筛选一致，新增 CSV 与原始数据备份，详见 [Phase 3 笔记库与导出](PHASE3_NOTE_LIBRARY.md)。
 
 - Phase 2 后端：新增 `/api/workspace`（任务列表、任务详情、进度、导出、停止、补采）与 `/workspace` 真实工作台页面，把已采集的 dataset 接进新 UI，统计口径与客户报告一致，详见 [Phase 2 后端接口](PHASE2_WORKSPACE_API.md)。
