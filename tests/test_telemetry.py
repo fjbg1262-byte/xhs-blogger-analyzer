@@ -60,6 +60,32 @@ class TelemetryPrivacyTests(unittest.TestCase):
                 self.assertFalse(queue_path.exists())
                 self.assertEqual(telemetry.load_preferences()["consent"], "denied")
 
+    def test_unwritable_preferences_do_not_block_startup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "telemetry_preferences.json"
+            # 文件存在但内容需要归一化，写入失败时也要返回可用值而不是抛异常。
+            config_path.write_text(
+                '{"install_id": "not-a-uuid", "consent": "garbage", "updated_at": "x"}',
+                encoding="utf-8",
+            )
+            with (
+                patch.object(telemetry, "_config_path", return_value=config_path),
+                patch.object(Path, "write_text", side_effect=PermissionError(13, "denied")),
+            ):
+                prefs = telemetry.load_preferences()
+                self.assertIn("install_id", prefs)
+                self.assertEqual(prefs["consent"], "unknown")
+
+    def test_save_consent_reports_unwritable_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "telemetry_preferences.json"
+            with (
+                patch.object(telemetry, "_config_path", return_value=config_path),
+                patch.object(Path, "write_text", side_effect=PermissionError(13, "denied")),
+            ):
+                with self.assertRaises(ValueError):
+                    telemetry.save_consent("granted")
+
 
 if __name__ == "__main__":
     unittest.main()

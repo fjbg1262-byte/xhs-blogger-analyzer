@@ -97,8 +97,15 @@ def load_preferences() -> dict[str, Any]:
             "consent": consent,
             "updated_at": str(payload.get("updated_at") or _utc_now()),
         }
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
+        # The preferences file is optional. A read-only or locked data folder must
+        # never stop the local service from starting, so writes are best effort.
+        if all(payload.get(key) == normalized[key] for key in normalized):
+            return normalized
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            print(f"[Telemetry] preferences not writable, using defaults: {exc}", flush=True)
         return normalized
 
 
@@ -110,8 +117,11 @@ def save_consent(consent: str) -> dict[str, Any]:
     prefs["updated_at"] = _utc_now()
     with _state_lock:
         path = _config_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"无法写入偏好设置文件：{exc}") from None
     if consent == "denied":
         try:
             _queue_path().unlink(missing_ok=True)

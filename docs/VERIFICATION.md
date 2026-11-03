@@ -1,5 +1,11 @@
 # 0.3.0-beta.7 验证记录
 
+### 启动失败修复（2026-11-03）
+
+- 现象：双击 EXE 后窗口闪退，日志为 `PermissionError: telemetry_preferences.json`，服务未能启动。
+- 原因：`%LOCALAPPDATA%\XHSOrganizer` 目录带有早前沙箱留下的只读权限（`CodexSandboxUsers` 仅 ReadAndExecute），由浏览器/桌面启动的进程无法写该目录。
+- 处理：1) 对该目录递归授予 `CodexSandboxUsers:(OI)(CI)M`（原有 ACL 备份在 `.build\acl-xhsorganizer.txt`）；2) 遥测偏好改为尽力写入：内容未变化不重写，写入失败只打印一行警告，不再阻塞启动；3) 删除损坏的旧 `telemetry_preferences.json`。
+- 验证：打包 EXE 以真实数据目录启动成功（`/api/health` 返回 `0.3.0-beta.7`）；`tests/test_telemetry.py` 增加两项（写入失败仍能加载、保存失败返回可读错误），全量 **86 项通过**。
 ## beta.7 打包（2026-11-03）
 
 - `scripts/build_organizer.ps1 -Version 0.3.0-beta.7`：PyInstaller 打包、自检 `SELF_CHECK_OK`、运行数据扫描通过，发布目录 1755 个文件，ZIP 1756 条记录、67.5MB。
