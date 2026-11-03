@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import Account, Task, get_db
 from backend.routers.auth import get_current_user
+from backend.services.account_compare import account_profile, build_comparison
 from backend.services.feishu_package import build_excel_backup, build_feishu_package
 from backend.services.note_library import csv_bytes
 from backend.services.note_workspace import (
@@ -31,6 +32,8 @@ from backend.services.note_workspace import (
 )
 
 router = APIRouter(prefix="/api/workspace", tags=["workspace"])
+
+MSG_BAD_COMPARE = "对比需要 2 至 5 个已完成采集的账号。"
 
 MSG_NO_TASK = "找不到这个采集任务，或它不属于当前账号。"
 MSG_NO_DATA = "这个任务还没有可用的采集结果，可能仍在进行或已经失败。"
@@ -76,6 +79,28 @@ def list_tasks(db: Session = Depends(get_db), user=Depends(get_current_user)):
         accounts.append(account_card(account, task, load_dataset(task.id)))
 
     return {"tasks": cards, "accounts": accounts, "counts": {"tasks": len(cards), "accounts": len(accounts)}}
+
+
+@router.get("/compare")
+def compare(task_ids: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Compare 2-5 accounts on the same eight dimensions, using their latest tasks."""
+    try:
+        ids = [int(item) for item in task_ids.split(",") if item.strip()]
+    except ValueError:
+        raise HTTPException(400, MSG_BAD_COMPARE) from None
+    unique = list(dict.fromkeys(ids))
+    if not 2 <= len(unique) <= 5:
+        raise HTTPException(400, MSG_BAD_COMPARE)
+    profiles = []
+    for task_id in unique:
+        task = _collection_task(db, task_id, user["id"])
+        dataset = load_dataset(task_id)
+        if dataset is None:
+            raise HTTPException(404, MSG_NO_DATA)
+        account = db.query(Account).filter(Account.id == task.account_id, Account.user_id == user["id"]).first()
+        card = task_card(task, dataset)
+        profiles.append(account_profile(card, dataset_stats(dataset, task_id), dataset, account_card(account, task, dataset)))
+    return build_comparison(profiles)
 
 
 @router.get("/tasks/{task_id}")

@@ -91,11 +91,21 @@ class WorkspaceApiTests(unittest.TestCase):
                              task_type="note_collection", status="partial", progress=100))
             session.add(Task(id=2, user_id=1, account_id=1, cookie_id=1,
                              task_type="note_collection", status="running", progress=40))
+            session.add(Account(id=2, user_id=1, profile_url="https://www.xiaohongshu.com/user/profile/def67890"))
+            session.add(Task(id=4, user_id=1, account_id=2, cookie_id=1,
+                             task_type="note_collection", status="completed", progress=100))
             session.commit()
 
         data = self.root / "tasks" / "1"
         data.mkdir(parents=True)
         (data / "dataset.json").write_text(json.dumps(sample_dataset(), ensure_ascii=False), encoding="utf-8")
+        other = sample_dataset()
+        for row in other["rows"]:
+            row["title"] = "视频账号：" + row["title"]
+            row["author_nickname"] = "视频账号"
+        second = self.root / "tasks" / "4"
+        second.mkdir(parents=True)
+        (second / "dataset.json").write_text(json.dumps(other, ensure_ascii=False), encoding="utf-8")
 
         def db():
             with self.Session() as session:
@@ -116,15 +126,15 @@ class WorkspaceApiTests(unittest.TestCase):
 
     def test_task_list_and_accounts(self):
         payload = self.client.get("/api/workspace/tasks").json()
-        self.assertEqual(payload["counts"]["tasks"], 2)
-        self.assertEqual(payload["counts"]["accounts"], 1)
+        self.assertEqual(payload["counts"]["tasks"], 3)
+        self.assertEqual(payload["counts"]["accounts"], 2)
         card = next(item for item in payload["tasks"] if item["id"] == 1)
         self.assertEqual(card["status_label"], "部分完成")
         self.assertEqual(card["note_count"], 3)
         self.assertEqual(card["body_count"], 2)
         self.assertEqual(card["failed_count"], 1)
         self.assertEqual(card["target"], 100)
-        account = payload["accounts"][0]
+        account = next(item for item in payload["accounts"] if item["id"] == 1)
         self.assertEqual(account["note_count"], 3)
         self.assertEqual(account["name"], "野路手册")
         self.assertEqual(account["last_task_id"], 1)
@@ -268,6 +278,23 @@ class WorkspaceApiTests(unittest.TestCase):
         self.assertEqual(workbook.sheetnames, ["笔记库", "账号总览", "采集说明"])
         self.assertEqual(workbook["笔记库"].max_row, 4)
         self.assertEqual(workbook["账号总览"].max_row, 2)
+    def test_compare_two_accounts(self):
+        response = self.client.get("/api/workspace/compare?task_ids=1,4")
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(len(payload["accounts"]), 2)
+        self.assertEqual(len(payload["rows"]), 8)
+        self.assertTrue(all(len(row["values"]) == 2 for row in payload["rows"]))
+        self.assertEqual(payload["rows"][0]["title"], "账号定位")
+        self.assertTrue(payload["takeaways"])
+        self.assertEqual(len(payload["plan"]), 5)
+        self.assertIn("公开互动", payload["boundary"])
+
+    def test_compare_validation(self):
+        self.assertEqual(self.client.get("/api/workspace/compare?task_ids=1").status_code, 400)
+        self.assertEqual(self.client.get("/api/workspace/compare?task_ids=1,4,1").status_code, 200)
+        self.assertEqual(self.client.get("/api/workspace/compare?task_ids=1,a").status_code, 400)
+        self.assertEqual(self.client.get("/api/workspace/compare?task_ids=1,2").status_code, 404)
     def test_stop_completed_task_conflicts(self):
         self.assertEqual(self.client.post("/api/workspace/tasks/1/stop").status_code, 409)
         with patch("backend.tasks.worker._cancel_task", return_value=True):

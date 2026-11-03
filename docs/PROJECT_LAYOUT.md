@@ -30,13 +30,13 @@ analyze_all.py、generate_reports.py及旧版后端仍有调用依赖，暂保�
 - 旧交付beta.10：BUILD_INFO记录2026-08-05、Git d8d727d。它不代表所有未提交更改；EXE内部源码不能仅靠外部同名文件推断。
 - Edge配置：指向release/XHS博主分析助手-Windows测试版-0.1.0-beta.9/browser-extension。配置state字段缺失，不能据此断言当前启用状态。
 - 开发源码：基于d8d727d且有大量未提交修改，新功能在保留这些改动的基础上增加。
-- 新版本：应用0.3.0-beta.6、扩展0.4.0，两者版本号体系不同。新启动器会检查organizer_schema，避免误用旧8000端口服务。
+- 新版本：应用0.3.0-beta.7、扩展0.4.0，两者版本号体系不同。新启动器会检查organizer_schema，避免误用旧8000端口服务。
 
 beta.9若仍被浏览器配置引用，只保留该目录中的扩展兼容路径，直到用户在浏览器切换到固定加载路径；它不属于可交付版本。
 
 ## 构建回溯
 
-先安装 `requirements.lock.txt` 以及 `frontend`、`spider_xhs` 的 `package-lock.json` 锁定依赖，再运行 `scripts/build_organizer.ps1 -Version 0.3.0-beta.6`。每次新版本生成 `source-版本.zip` 与 `SOURCE_MANIFEST.json`（逐文件哈希、Git提交和dirty状态），实际构建的源码以快照和指纹为准，不能只凭Git提交号。
+先安装 `requirements.lock.txt` 以及 `frontend`、`spider_xhs` 的 `package-lock.json` 锁定依赖，再运行 `scripts/build_organizer.ps1 -Version 0.3.0-beta.7`。每次新版本生成 `source-版本.zip` 与 `SOURCE_MANIFEST.json`（逐文件哈希、Git提交和dirty状态），实际构建的源码以快照和指纹为准，不能只凭Git提交号。
 
 发布目录不可覆盖使用中的同名版本；新版本必须使用新目录。自检会验证 AI schema、分析路由、前端资源和 Excel；扫描会拒绝 Cookie、数据库、日志、密钥配置等运行数据，处理后再生成 ZIP。运行中的用户数据库放到 `LOCALAPPDATA`，避免用过的程序文件夹污染交付。
 

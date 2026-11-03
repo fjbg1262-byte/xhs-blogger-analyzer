@@ -82,7 +82,7 @@ class LibraryApiTests(unittest.TestCase):
         submit.assert_called_once_with(task_id)
         with self.Session() as s:
             self.assertEqual(s.get(Task,task_id).task_type,'note_collection')
-        self.assertIn('%2Flibrary',response.json()['report_url'])
+        self.assertIn('%2Fworkspace%3Ftask%3D',response.json()['report_url'])
 
     def test_ai_delivery_end_to_end_and_approval_gate(self):
         dataset = sample_dataset()

@@ -1,5 +1,17 @@
-# 0.3.0-beta.6 验证记录
+# 0.3.0-beta.7 验证记录
 
+## beta.7 打包（2026-11-03）
+
+- `scripts/build_organizer.ps1 -Version 0.3.0-beta.7`：PyInstaller 打包、自检 `SELF_CHECK_OK`、运行数据扫描通过，发布目录 1755 个文件，ZIP 1756 条记录、67.5MB。
+- 打包实例 `XHS-Organizer.exe --xhs-serve 8123`：`/api/health` 返回 `0.3.0-beta.7`；`/workspace` 返回前端；工作台冒烟 **17/17**、对比冒烟 **9/9**。
+- 插件链路：`POST /api/extension/collect-current` 的跳转改为 `/workspace?task=<id>`；工作台支持 `?task=` 深链接，任务仍在采集时显示进度面板并轮询，不再报「没有结果」。
+## Phase 6 多账号对比（2026-11-03）
+
+- `/workspace` 增加「账号对比」标签：选 2–5 个账号，同屏 8 行对比表、值得借鉴/不要照搬/共同主题、一周计划与边界说明。
+- 对比接口 `GET /api/workspace/compare?task_ids=`，数值全部来自各自 dataset，不调用模型；下一步与计划是规则推导。
+- 验证：`tests/test_workspace_api.py` **14 项通过**；`tests/browser/compare-smoke.cjs` **9/9 通过**（含 ?task= 深链接、2 账号 16 个单元格、3 账号 24 个单元格）。
+- 全量 Python 回归 **84 项通过**。
+- 明细见 [Phase 6 多账号对比](PHASE6_COMPARE.md)。
 ## Phase 5 单账号八维分析（2026-11-03）
 
 - `/workspace` 增加「笔记库 / 八维分析」标签，接入已有 `library_analysis` + `analysis_worker` 链路，不新写模型调用。
@@ -52,9 +64,9 @@
 
 ## beta.6 打包与入口（2026-11-01）
 
-- `scripts/build_organizer.ps1 -Version 0.3.0-beta.6`：源码快照、PyInstaller 打包、自检 `SELF_CHECK_OK`、运行数据扫描通过，发布目录 1754 个文件。
+- `scripts/build_organizer.ps1 -Version 0.3.0-beta.7`：源码快照、PyInstaller 打包、自检 `SELF_CHECK_OK`、运行数据扫描通过，发布目录 1754 个文件。
 - 修复 ZIP 生成：`Compress-Archive` 在 200MB 级目录上抛 `OutOfMemoryException`，只写出 1613 条记录且缺根目录文件，部分 .NET 版本还会写入反斜杠路径。改用新增的 `scripts/zip_release.py`（Python zipfile 流式写入正斜杠）后，ZIP 为 1754 条记录、无 `\` 路径、逐条可解压读取。
-- 用打包后的 `XHS-Organizer.exe --xhs-serve 8123` 启动验证：`/api/health` 返回 `app_version=0.3.0-beta.6`、`organizer_schema=1.0`、`spider_xhs_available=true`；`/`、`/demo`、`/demo?page=compare` 均返回前端 SPA，`/assets/index-*.js` 返回 200。
+- 用打包后的 `XHS-Organizer.exe --xhs-serve 8123` 启动验证：`/api/health` 返回 `app_version=0.3.0-beta.7`、`organizer_schema=1.0`、`spider_xhs_available=true`；`/`、`/demo`、`/demo?page=compare` 均返回前端 SPA，`/assets/index-*.js` 返回 200。
 - 对打包实例重跑 `tests/browser/demo-smoke.cjs`：**29/29 通过**，说明本地程序首页确实打开 Demo。
 - 本机 `%LOCALAPPDATA%/XHSOrganizer/0.2` 带有早期沙箱活动留下的只读权限，工具进程内的子进程写不进该目录；本次验证用 `XHS_APP_HOME` 指向工作区临时目录完成。该限制来自本机目录权限，不是本版本代码，真实用户目录未在本机双击验证。
 

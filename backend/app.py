@@ -21,7 +21,7 @@ from backend.services.customer_report import REPORT_RENDERER_VERSION
 app = FastAPI(
     title="小红书主页内容整理器",
     description="主页公开笔记整理与 Excel / CSV / 飞书导入",
-    version="0.3.0-beta.6",
+    version="0.3.0-beta.7",
 )
 
 # CORS

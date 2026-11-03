@@ -2,7 +2,7 @@
 
 依据：[开发顺序](product/DEVELOPMENT_PLAN.md) 第 3 节 Phase 1，以及 [PRD](product/PRD.md) 第 5 章页面结构。
 验收对象：`frontend/src/views/ProductDemoView.vue`（本地程序入口 `/demo`）。
-日期：2026-11-01。版本：应用 `0.3.0-beta.6`，浏览器扩展 `0.4.0`。
+日期：2026-11-01。版本：应用 `0.3.0-beta.7`，浏览器扩展 `0.4.0`。
 
 ## 结论
 

@@ -1,5 +1,5 @@
 param(
-  [string]$Version = '0.3.0-beta.6',
+  [string]$Version = '0.3.0-beta.7',
   [string]$Python = '',
   [switch]$SkipFrontend
 )

@@ -95,13 +95,13 @@
 
         <p v-if="loading" class="state">正在读取采集结果…</p>
         <div v-else-if="error" class="state error">{{ error }}</div>
-        <div v-else-if="!detail" class="state empty">
+        <div v-else-if="!detail && !startingTaskId" class="state empty">
           <b>还没有可展示的采集结果</b>
           <span>用浏览器插件在博主主页点一次采集，结果会出现在这里。</span>
           <router-link to="/demo" class="btn ghost">先看演示数据</router-link>
         </div>
 
-        <template v-else>
+        <template v-else-if="detail">
           <div class="page-head">
             <div>
               <p class="eyebrow">REAL COLLECTION · TASK #{{ detail.task.id }}</p>
@@ -128,6 +128,7 @@
           <div class="view-tabs">
             <button type="button" :class="{ active: view === 'library' }" @click="view = 'library'">笔记库</button>
             <button type="button" :class="{ active: view === 'analysis' }" @click="view = 'analysis'">八维分析</button>
+            <button type="button" :class="{ active: view === 'compare' }" @click="view = 'compare'">账号对比</button>
           </div>
 
           <div v-if="view === 'library'">
@@ -266,7 +267,8 @@
           </div>
           </div>
 
-          <WorkspaceAnalysis v-else :task-id="detail.task.id" :account-name="detail.account.name" />
+          <WorkspaceAnalysis v-else-if="view === 'analysis'" :task-id="detail.task.id" :account-name="detail.account.name" />
+          <WorkspaceCompare v-else />
         </template>
       </div>
 
@@ -319,9 +321,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { cookieAPI, libraryAPI, workspaceAPI } from '../api/client'
 import WorkspaceAnalysis from './WorkspaceAnalysis.vue'
+import WorkspaceCompare from './WorkspaceCompare.vue'
 import { clearAuth, currentUsername } from '../auth'
 
 interface TaskCard {
@@ -411,10 +414,11 @@ interface TaskDetail {
 }
 
 const router = useRouter()
+const route = useRoute()
 const username = currentUsername
 const tasks = ref<TaskCard[]>([])
 const accountOfTask = ref<Record<number, string>>({})
-const view = ref<'library' | 'analysis'>('library')
+const view = ref<'library' | 'analysis' | 'compare'>('library')
 const selectedId = ref<number | null>(null)
 const detail = ref<TaskDetail | null>(null)
 const loading = ref(true)
@@ -525,7 +529,10 @@ async function loadList() {
     const mapping: Record<number, string> = {}
     for (const account of response.data.accounts as { id: number; name: string }[]) mapping[account.id] = account.name
     accountOfTask.value = mapping
-    const first = tasks.value.find(task => task.has_dataset) || tasks.value[0]
+    const requestedTask = Number(route.query.task)
+    const first = (requestedTask && tasks.value.find(task => task.id === requestedTask))
+      || tasks.value.find(task => task.has_dataset)
+      || tasks.value[0]
     if (first) await select(first.id)
   } catch (exc: any) {
     error.value = exc?.response?.data?.detail || '读取采集记录失败，请确认本地工具正在运行。'
@@ -550,6 +557,18 @@ async function loadDetail() {
     detail.value = response.data as TaskDetail
     error.value = ''
   } catch (exc: any) {
+    const known = tasks.value.find(task => task.id === selectedId.value)
+    if (known && ['pending', 'running'].includes(known.status)) {
+      // 插件刚创建任务时 dataset 还没写出来，直接进入进度轮询而不是报错。
+      detail.value = null
+      error.value = ''
+      startingTaskId.value = known.id
+      stageSteps.value = defaultStages()
+      stageText.value = known.status_label
+      notice.value = '这个任务正在采集，完成后会自动打开结果。'
+      pollNewTask(known.id)
+      return
+    }
     detail.value = null
     error.value = exc?.response?.data?.detail || '这个任务还没有可用的采集结果。'
   }

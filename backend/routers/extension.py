@@ -38,7 +38,7 @@ def collect_current(body: ExtensionAnalyzeRequest, db: Session = Depends(get_db)
     cookie = _save_extension_cookie(db, user.id, body.cookie_text)
     task = create_collection(db, user.id, profile_url, cookie.id)
     token = _create_jwt({"sub": str(user.id), "username": user.username})
-    redirect = quote(f"/library?task={task.id}", safe="")
+    redirect = quote(f"/workspace?task={task.id}", safe="")
     return {"task_id": task.id, "report_url": f"{FRONTEND_BASE_URL}/extension-login?token={quote(token, safe='')}&username={user.username}&redirect={redirect}"}
 
 

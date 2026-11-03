@@ -10,7 +10,7 @@
         </div>
         <div class="brand-copy">
           <strong>薯光</strong>
-          <span>0.3.0-beta.6 工作台</span>
+          <span>0.3.0-beta.7 工作台</span>
         </div>
       </div>
       <nav class="header-nav">

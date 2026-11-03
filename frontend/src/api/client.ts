@@ -81,6 +81,7 @@ export interface WorkspaceQuery {
 
 export const workspaceAPI = {
   tasks: () => api.get('/workspace/tasks'),
+  compare: (taskIds: number[]) => api.get('/workspace/compare', { params: { task_ids: taskIds.join(',') } }),
   task: (id: number, params: WorkspaceQuery = {}) => api.get(`/workspace/tasks/${id}`, { params }),
   note: (taskId: number, noteId: string) => api.get(`/workspace/tasks/${taskId}/notes/${encodeURIComponent(noteId)}`),
   progress: (id: number) => api.get(`/workspace/tasks/${id}/progress`),
