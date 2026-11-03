@@ -30,6 +30,8 @@ Phase 1 的纯前端 Demo 已经成形，并成为本地程序入口：启动后
 
 ## 最近补齐
 
+- Phase 5：/workspace 增加八维分析标签，接入真实分析链路，覆盖五种状态、失败隔离、缺失数据写「未获取」，详见 [Phase 5 单账号八维分析](PHASE5_ANALYSIS.md)。
+
 - Phase 4：飞书导入包升级为账号总览 / 全部笔记 / 图文 / 视频 / 选题 / 采集记录 + 导入说明 7 张表，Excel 备份含账号总览，详见 [Phase 4 飞书导入 2.0](PHASE4_FEISHU_IMPORT.md)。
 
 - Phase 3：笔记库筛选/分页/多选/导出全部挪到服务端，导出条数与页面筛选一致，新增 CSV 与原始数据备份，详见 [Phase 3 笔记库与导出](PHASE3_NOTE_LIBRARY.md)。

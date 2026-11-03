@@ -125,6 +125,12 @@
             </div>
           </div>
 
+          <div class="view-tabs">
+            <button type="button" :class="{ active: view === 'library' }" @click="view = 'library'">笔记库</button>
+            <button type="button" :class="{ active: view === 'analysis' }" @click="view = 'analysis'">八维分析</button>
+          </div>
+
+          <div v-if="view === 'library'">
           <div class="kpi-row">
             <article class="kpi"><span>公开互动</span><b>{{ compact(detail.stats.total_engagement) }}</b><small>赞 + 藏 + 评 + 分享</small></article>
             <article class="kpi"><span>单篇中位数</span><b>{{ (detail.stats.median_engagement || 0).toLocaleString() }}</b><small>比均值更不易被爆款拉偏</small></article>
@@ -258,6 +264,9 @@
             <span>第 {{ currentPage }} / {{ pageCount }} 页 · 共 {{ total }} 篇</span>
             <button class="btn ghost" type="button" :disabled="currentPage === pageCount" @click="goPage(currentPage + 1)">下一页</button>
           </div>
+          </div>
+
+          <WorkspaceAnalysis v-else :task-id="detail.task.id" :account-name="detail.account.name" />
         </template>
       </div>
 
@@ -312,6 +321,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { cookieAPI, libraryAPI, workspaceAPI } from '../api/client'
+import WorkspaceAnalysis from './WorkspaceAnalysis.vue'
 import { clearAuth, currentUsername } from '../auth'
 
 interface TaskCard {
@@ -404,6 +414,7 @@ const router = useRouter()
 const username = currentUsername
 const tasks = ref<TaskCard[]>([])
 const accountOfTask = ref<Record<number, string>>({})
+const view = ref<'library' | 'analysis'>('library')
 const selectedId = ref<number | null>(null)
 const detail = ref<TaskDetail | null>(null)
 const loading = ref(true)
@@ -889,7 +900,11 @@ onUnmounted(() => clearInterval(pollTimer))
 .insight > p:last-child { margin: 0; font-size: 11.5px; line-height: 1.8; color: #5f584d; }
 .boundary { margin: 12px 0 0; padding: 9px 12px; background: #efe7da; border-radius: 4px; font-size: 10.5px; color: #776d5d; }
 
-.library-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 20px 0 10px; }
+.view-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin: 16px 0 18px; }
+.view-tabs button { position: relative; border: 0; background: none; padding: 0 0 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.view-tabs button.active { color: var(--ink); font-weight: 700; }
+.view-tabs button.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--rust); }
+.library-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 12px 0 10px; }
 .library-tabs button { border: 0; background: none; padding: 8px 11px 9px; font-size: 12px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .library-tabs button span { margin-left: 5px; font-size: 10px; color: var(--muted-2); }
 .library-tabs button.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--xhs); }

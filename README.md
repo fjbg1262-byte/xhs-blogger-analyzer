@@ -46,6 +46,7 @@ $env:XHS_APP_HOME="<repo>\data\dev-runtime"
 - [Phase 1 前端验收记录](docs/PHASE1_ACCEPTANCE.md)
 - [Phase 3 笔记库与导出](docs/PHASE3_NOTE_LIBRARY.md)
 - [Phase 4 飞书导入 2.0](docs/PHASE4_FEISHU_IMPORT.md)
+- [Phase 5 单账号八维分析](docs/PHASE5_ANALYSIS.md)
 - [测试记录及真实环境待验收项](docs/VERIFICATION.md)
 - [商品化竞品拆解、产品定位、飞书规范与开发路线](docs/product/README.md)
 
